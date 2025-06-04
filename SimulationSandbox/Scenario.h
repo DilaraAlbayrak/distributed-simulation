@@ -1,7 +1,7 @@
 #pragma once
-#include <mutex>
 #include "PhysicsObject.h"
 #include "ShaderManager.h"
+#include "PhysicsManager.h"
 
 using globals::AXIS_LENGTH;
 
@@ -33,10 +33,8 @@ private:
 	// threading
 	std::mutex _spawnMutex;
 	std::vector<std::unique_ptr<PhysicsObject>> _pendingSpawns;
-	std::mutex _renderQueueMutex;
-	std::vector<std::unique_ptr<PhysicsObject>> _renderReadyQueue;
-	std::mutex _physicsObjectsMutex;
-	std::vector<std::chrono::steady_clock::time_point> _lastUpdateTimes; // for each physics thread
+	mutable std::shared_mutex _physicsManagerMutex;
+	std::shared_ptr<PhysicsManager> _physicsManager;
 
 	HRESULT initRenderingResources(PhysicsObject* obj);
 
@@ -54,8 +52,8 @@ protected:
 		spawnData = generateUniform2DPositions(numMovingSpheres, areaHalfSize, minRadius, maxRadius);
 		spawnIndex = 0;
 	}
+	void addPhysicsObject(std::unique_ptr<PhysicsObject> obj);
 	std::vector<std::tuple<float, float, float>> generateUniform2DPositions(int n = 25, float areaHalfSize = globals::AXIS_LENGTH, float minRadius = 0.3f, float maxRadius = 0.3f);
-
 
 	virtual void setupFixedObjects() = 0; // Pure virtual function to be implemented in derived classes
 
@@ -67,7 +65,7 @@ public:
 
 	virtual void onLoad() = 0;
 	virtual void onUnload() = 0;
-	virtual void onUpdate(float dt = 0.016) = 0;
+	virtual void onUpdate(float dt = 0.016f) = 0;
 	virtual void ImGuiMainMenu() = 0;
 
 	void setDeviceAndContext(CComPtr<ID3D11Device> pDevice, CComPtr<ID3D11DeviceContext> pContext)
@@ -76,23 +74,23 @@ public:
 		context = pContext;
 	}
 	void renderObjects();
-	void spawnMovingSphere();
-	void onFrameUpdate(float dt = 0.016);
+	void onFrameUpdate(float dt = 0.016f);
 
-	// threading
-	void transferRenderReadyObjects();
-	void updatePartitioned(int threadIndex, int numThreads, float dt = 0.016f);
 	void processPendingSpawns();
-	void initThreadTiming(int numThreads);
 
-	std::vector<std::unique_ptr<PhysicsObject>>& getPhysicsObjects() { return physicsObjects; }
-	void addPhysicsObject(std::unique_ptr<PhysicsObject> obj)
-	{
-		physicsObjects.push_back(std::move(obj)); 
-	}
-
+	void spawnMovingSphere();
 	void setNumMovingSpheres(int n) { numMovingSpheres = n; }
 	void setMinRadius(float r) { minRadius = r; }
 	void setMaxRadius(float r) { maxRadius = r; }
+	void setPhysicsManager(std::shared_ptr<PhysicsManager> physicsManager) 
+	{
+		std::unique_lock<std::shared_mutex> lock(_physicsManagerMutex);
+		_physicsManager = std::move(physicsManager);
+	}
+	std::shared_ptr<PhysicsManager> getPhysicsManager()
+	{
+		std::shared_lock<std::shared_mutex> lock(_physicsManagerMutex);
+		return _physicsManager;
+	}
 };
 

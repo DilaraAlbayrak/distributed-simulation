@@ -260,37 +260,17 @@ void Scenario::spawnRoom()
 
 }
 
-void Scenario::transferRenderReadyObjects()
+void Scenario::addPhysicsObject(std::unique_ptr<PhysicsObject> obj)
 {
-    std::vector<std::unique_ptr<PhysicsObject>> readyObjects;
-
-    {
-        std::lock_guard<std::mutex> lock(_renderQueueMutex);
-        readyObjects.swap(_renderReadyQueue); 
-    }
-
-    for (auto& obj : readyObjects)
-    {
-        HRESULT hr = initRenderingResources(obj.get());
-        if (FAILED(hr)) {
-            OutputDebugString(L"[ERROR] Failed to initialize rendering resources for object.\n");
-            continue;
-        }
-
-        obj->savePreviousPosition();
-
-        {
-            std::lock_guard<std::mutex> lock(_physicsObjectsMutex);
-            physicsObjects.push_back(std::move(obj));
-        }
-    }
+    std::lock_guard lock(_spawnMutex);
+    _pendingSpawns.push_back(std::move(obj));
 }
 
 void Scenario::renderObjects()
 {
     if (!vertexShader || !pixelShader) return;
 
-    std::lock_guard<std::mutex> lock(_physicsObjectsMutex);
+	auto physicsObjects = _physicsManager->accessPhysicsObjects();
 
     size_t N = physicsObjects.size();
     if (N != vertexBuffers.size() ||
@@ -331,97 +311,14 @@ void Scenario::onFrameUpdate(float dt)
 	//spawnMovingSphere();
 }
 
-void Scenario::updatePartitioned(int threadIndex, int numThreads, float dt)
-{
-    std::lock_guard<std::mutex> lock(_physicsObjectsMutex);
-
-    const size_t count = physicsObjects.size();
-    if (count == 0 || threadIndex >= numThreads) return;
-
-    const size_t perThread = count / numThreads;
-    const size_t start = threadIndex * perThread;
-    const size_t end = (threadIndex == numThreads - 1) ? count : start + perThread;
-
-    // -- Save previous positions --
-    for (size_t i = start; i < end; ++i)
-    {
-        physicsObjects[i]->resetPositionRestorationFlag();
-        physicsObjects[i]->savePreviousPosition();
-    }
-
-    // -- Physics integration --
-    for (size_t i = start; i < end; ++i)
-    {
-        physicsObjects[i]->Update(dt);
-    }
-
-    // -- Intra-thread collision resolution --
-    for (size_t i = start; i < end; ++i)
-    {
-        for (size_t j = i + 1; j < end; ++j)
-        {
-            PhysicsObject* a = physicsObjects[i].get();
-            PhysicsObject* b = physicsObjects[j].get();
-            if (a == b) continue;
-            if (a > b) std::swap(a, b);
-
-            float penetrationDepth = 0.0f;
-            DirectX::XMFLOAT3 collisionNormal = { 0.0f, 0.0f, 0.0f };
-
-            if (a->checkCollision(*b, collisionNormal, penetrationDepth))
-            {
-                std::scoped_lock lock(a->getCollisionMutex(), b->getCollisionMutex());
-                a->resolveCollision(*b, collisionNormal, penetrationDepth);
-            }
-        }
-    }
-
-    // -- Inter-thread collision resolution (evenly distributed among threads) --
-    for (size_t i = 0; i < count; ++i)
-    {
-        size_t part_i = i / perThread;
-
-        for (size_t j = i + 1; j < count; ++j)
-        {
-            size_t part_j = j / perThread;
-            if (part_i == part_j) continue; // already handled in intra-thread
-
-            if ((i + j) % numThreads != threadIndex) continue;
-
-            PhysicsObject* a = physicsObjects[i].get();
-            PhysicsObject* b = physicsObjects[j].get();
-            if (a == b) continue;
-            if (a > b) std::swap(a, b);
-
-            float penetrationDepth = 0.0f;
-            DirectX::XMFLOAT3 collisionNormal = { 0.0f, 0.0f, 0.0f };
-
-            if (a->checkCollision(*b, collisionNormal, penetrationDepth))
-            {
-                std::scoped_lock lock(a->getCollisionMutex(), b->getCollisionMutex());
-                a->resolveCollision(*b, collisionNormal, penetrationDepth);
-            }
-        }
-    }
-}
-
 void Scenario::processPendingSpawns()
 {
     std::lock_guard<std::mutex> lock(_spawnMutex);
     for (auto& obj : _pendingSpawns)
     {
-        std::lock_guard<std::mutex> rlock(_renderQueueMutex);
-        _renderReadyQueue.push_back(std::move(obj));
+        _physicsManager->addObject(std::move(obj));
     }
     _pendingSpawns.clear();
-}
-
-void Scenario::initThreadTiming(int numThreads)
-{
-	_lastUpdateTimes.resize(numThreads);
-	auto now = std::chrono::steady_clock::now();
-	for (auto& t : _lastUpdateTimes)
-		t = now;
 }
 
 std::vector<std::tuple<float, float, float>> Scenario::generateUniform2DPositions(int n, float areaHalfSize, float minRadius, float maxRadius)

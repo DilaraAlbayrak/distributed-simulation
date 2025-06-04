@@ -12,7 +12,7 @@ public:
 
 	void onLoad() override;
 	void onUnload() override;
-	void onUpdate(float dt = 0.016) override;
+	void onUpdate(float dt = 0.016f) override;
 	void ImGuiMainMenu() override;
 };
 

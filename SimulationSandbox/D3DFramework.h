@@ -136,13 +136,14 @@ class D3DFramework final {
 	static float time;
 	const float fixedTimesteps[4] = { 0.002f, 0.004f, 0.008f, 0.016f };
 	float fixedTimestep = fixedTimesteps[1];
-	const float maxSteps[4] = { 8, 4, 2, 1 };
+	const int maxSteps[4] = { 8, 4, 2, 1 };
 	int numMaxStep = maxSteps[1];
 	float cumulativeTime = 0.0f;
 
 	Camera _camera;
 
 	std::unique_ptr<Scenario> _scenario;
+	std::shared_ptr<PhysicsManager> _physicsManager;
 
 	static std::unique_ptr<D3DFramework> _instance;
 
@@ -161,18 +162,20 @@ class D3DFramework final {
 
 	void setScenario(std::unique_ptr<Scenario> scenario)
 	{
-		stopPhysicsThreads();
-
+		stopPhysicsThreads(); 
 		if (_scenario)
-			_scenario.get()->onUnload();
+			_scenario->onUnload();
 
+		_physicsManager = std::make_shared<PhysicsManager>(); 
+		scenario->setPhysicsManager(_physicsManager);        
 		scenario->setDeviceAndContext(_pd3dDevice, _pImmediateContext);
-		_scenario = std::move(scenario);
-		_scenario.get()->onLoad();
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		//_scenario->initThreadTiming(6);
-		startPhysicsThreads(6); // Start physics threads with 6 threads
+		_scenario = std::move(scenario);
+		_scenario->onLoad();
+
+		unsigned int totalCores = std::thread::hardware_concurrency();
+		unsigned int simThreadCount = (totalCores > 3) ? totalCores - 3 : 1; // Core 0,1,2 not to be used for physics simulation
+		startPhysicsThreads(simThreadCount);
 	}
 
 public:

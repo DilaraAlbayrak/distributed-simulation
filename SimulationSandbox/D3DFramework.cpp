@@ -88,44 +88,31 @@ LRESULT CALLBACK D3DFramework::wndProc(HWND hWnd, UINT message, WPARAM wParam, L
 	return 0;
 }
 
-void D3DFramework::startPhysicsThreads(int numThreads) {
+void D3DFramework::startPhysicsThreads(int numThreads)
+{
 	_isRunning = true;
 	_physicsFreqStart = std::chrono::steady_clock::now();
 	_physicsStepCounter = 0;
 	_physicsThreads.resize(numThreads);
 
-	int coreAffinity[] = { 2, 3, 4, 5, 6, 7 }; // Logical cores (exclude 0–1 if for main + render)
+	int baseCore = 3; // Core 3 and onwards are reserved for simulation
 
 	for (int i = 0; i < numThreads; ++i) {
-		_physicsThreads[i] = std::thread([this, i, numThreads] {
-			// Core affinity (for better CPU cache locality)
-			int core = (i < 6) ? (2 + i) : (2 + i) % 6;
-			SetThreadAffinityMask(GetCurrentThread(), static_cast<DWORD_PTR>(1) << core);
-
-			// Per-thread delta time tracking
-			auto lastTime = std::chrono::steady_clock::now();
+		_physicsThreads[i] = std::thread([this, i, numThreads, baseCore] {
+			int coreID = baseCore + i;
+			SetThreadAffinityMask(GetCurrentThread(), static_cast<DWORD_PTR>(1) << coreID);
 
 			while (_isRunning) {
-				auto now = std::chrono::steady_clock::now();
-				float dt = std::chrono::duration<float>(now - lastTime).count();
-				lastTime = now;
-
-				if (dt > 0.05f) dt = 0.05f; // Clamp to avoid extreme physics steps
-
-				if (_scenario) {
-					_scenario->updatePartitioned(i, numThreads, dt);
+				if (_physicsManager) {
+					_physicsManager->updatePartitioned(i, numThreads, fixedTimestep);
 				}
 
 				++_physicsStepCounter;
-
-				// Measure frequency once per second
-				if (i == 0) { // Only one thread does the Hz tracking
-					auto tNow = std::chrono::steady_clock::now();
-					if (tNow - _physicsFreqStart >= std::chrono::seconds(1)) {
-						_actualPhysicsHz = static_cast<float>(_physicsStepCounter);
-						_physicsStepCounter = 0;
-						_physicsFreqStart = tNow;
-					}
+				auto now = std::chrono::steady_clock::now();
+				if (now - _physicsFreqStart >= std::chrono::seconds(1)) {
+					_actualPhysicsHz = static_cast<float>(_physicsStepCounter);
+					_physicsStepCounter = 0;
+					_physicsFreqStart = now;
 				}
 
 				std::this_thread::yield();
@@ -133,7 +120,6 @@ void D3DFramework::startPhysicsThreads(int numThreads) {
 			});
 	}
 }
-
 
 void D3DFramework::stopPhysicsThreads() {
 	_isRunning = false;
@@ -534,8 +520,6 @@ void D3DFramework::render()
 	{
 		//_scenario->processPendingSpawns();
 		_scenario->spawnMovingSphere();
-		_scenario->processPendingSpawns();
-		_scenario->transferRenderReadyObjects();
 		_scenario->renderObjects();
 	}
 
