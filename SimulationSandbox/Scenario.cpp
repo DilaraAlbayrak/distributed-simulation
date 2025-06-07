@@ -124,6 +124,7 @@ void Scenario::initObjects(const std::wstring& shaderFile)
         return;
     }
 
+    auto physicsObjects = _physicsManager->accessPhysicsObjects();
     for (auto& obj : physicsObjects)
     {
         HRESULT hr = initRenderingResources(obj.get());
@@ -141,7 +142,6 @@ void Scenario::unloadScenario()
         _pendingSpawns.clear();
     }
 
-    physicsObjects.clear();
     vertexBuffers.clear();
     indexBuffers.clear();
     indexCounts.clear();
@@ -162,34 +162,6 @@ void Scenario::applySharedGUI()
     }
     ImGui::PopItemWidth();
     ImGui::End();
-}
-
-void Scenario::updateMovement(float dt)
-{
-	for (auto& obj : physicsObjects)
-		obj->savePreviousPosition();
-
-	for (auto& obj : physicsObjects)
-		obj->Update(dt);
-
-    for (int i = 0; i < physicsObjects.size(); i++)
-    {
-        auto& obj = physicsObjects[i];
-
-        for (int j = i+1; j < physicsObjects.size(); j++) {
-            auto& otherObj = physicsObjects[j];
-            
-			//if (obj == otherObj) continue; // Skip self-collision
-
-			float penetrationDepth = 0.0f;
-			DirectX::XMFLOAT3 collisionNormal = { 0.0f, 0.0f, 0.0f };
-
-            if (obj->checkCollision(*otherObj, collisionNormal, penetrationDepth))
-            {
-                obj->resolveCollision(*otherObj, collisionNormal, penetrationDepth);
-            }
-        }
-    }
 }
 
 void Scenario::spawnRoom()

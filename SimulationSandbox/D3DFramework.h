@@ -64,19 +64,6 @@ struct Camera
 		view = XMMatrixLookAtLH(eye, at, up);
 	}
 
-	//void updateViewProjection()
-	//{
-	//	constexpr float baseHeight = 20.0f;                        
-	//	const float viewHeight = baseHeight / zoom;
-	//	const float aspect = _windowWidth / _windowHeight;
-	//	const float viewWidth = viewHeight * aspect;
-
-	//	projection = XMMatrixOrthographicLH(viewWidth, viewHeight, 0.1f, 1000.0f);
-
-	//
-	//	view = XMMatrixLookAtLH(eye, at, up);
-	//}
-
 	void rotate(float yaw, float pitch)
 	{
 		float x = radius * sin(yaw);
@@ -175,6 +162,9 @@ class D3DFramework final {
 
 		unsigned int totalCores = std::thread::hardware_concurrency();
 		unsigned int simThreadCount = (totalCores > 3) ? totalCores - 3 : 1; // Core 0,1,2 not to be used for physics simulation
+		// output simThreadCount with OutputDebugString
+		std::string msg = ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>Simulation threads: " + std::to_string(simThreadCount) + "\n";
+		OutputDebugStringA(msg.c_str());
 		startPhysicsThreads(simThreadCount);
 	}
 

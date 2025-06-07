@@ -518,8 +518,8 @@ void D3DFramework::render()
 
 	if (_scenario)
 	{
-		//_scenario->processPendingSpawns();
 		_scenario->spawnMovingSphere();
+		_scenario->processPendingSpawns();
 		_scenario->renderObjects();
 	}
 

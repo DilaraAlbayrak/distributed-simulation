@@ -14,11 +14,11 @@ void PhysicsManager::clearObjects()
 
 void PhysicsManager::updatePartitioned(int threadIndex, int numThreads, float dt)
 {
-    std::shared_lock readLock(_mutex); // Çoklu thread okuma yapabilir
+    std::shared_lock readLock(_mutex);
     const size_t count = _physicsObjects.size();
-    if (count == 0 || threadIndex >= numThreads) return;
+    if (count == 0 || numThreads == 0 || threadIndex >= numThreads) return;
 
-    const size_t perThread = count / numThreads;
+    const size_t perThread = std::max<size_t>(1, count / numThreads);
     const size_t start = threadIndex * perThread;
     const size_t end = (threadIndex == numThreads - 1) ? count : start + perThread;
 

@@ -8,7 +8,6 @@ using globals::AXIS_LENGTH;
 class Scenario
 {
 private:
-	std::vector<std::unique_ptr<PhysicsObject>> physicsObjects;
 	std::vector<CComPtr<ID3D11Buffer>> vertexBuffers;
 	std::vector<CComPtr<ID3D11Buffer>> indexBuffers;
 	std::vector<CComPtr<ID3D11InputLayout>> inputLayouts;
@@ -45,7 +44,6 @@ protected:
 	void applySharedGUI();
 
 	const int getIntegrationMethod() const { return integrationMethod; }
-	void updateMovement(float dt);
 
 	void spawnRoom();
 	void generateSpawnData(float areaHalfSize = globals::AXIS_LENGTH) {
