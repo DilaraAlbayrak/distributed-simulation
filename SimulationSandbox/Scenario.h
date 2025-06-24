@@ -1,7 +1,8 @@
 #pragma once
 #include "PhysicsObject.h"
 #include "ShaderManager.h"
-#include "PhysicsManager.h"
+#include <optional>
+#include <shared_mutex>
 
 using globals::AXIS_LENGTH;
 
@@ -27,13 +28,12 @@ private:
 	float maxRadius = 0.01f;
 	size_t spawnIndex = 0;
 	size_t numSpawned = 0;
+
+	std::vector<std::shared_ptr<PhysicsObject>> physicsObjects;
 	std::vector<std::tuple<float, float, float>> spawnData = {};
 
 	// threading
 	std::mutex _spawnMutex;
-	std::vector<std::unique_ptr<PhysicsObject>> _pendingSpawns;
-	mutable std::shared_mutex _physicsManagerMutex;
-	std::shared_ptr<PhysicsManager> _physicsManager;
 
 	HRESULT initRenderingResources(PhysicsObject* obj);
 
@@ -43,16 +43,14 @@ protected:
 	void unloadScenario();
 	void applySharedGUI();
 
-	const int getIntegrationMethod() const { return integrationMethod; }
-
 	void spawnRoom();
 	void generateSpawnData(float areaHalfSize = globals::AXIS_LENGTH) {
 		spawnData = generateUniform2DPositions(numMovingSpheres, areaHalfSize, minRadius, maxRadius);
 		spawnIndex = 0;
 	}
-	void addPhysicsObject(std::unique_ptr<PhysicsObject> obj);
 	std::vector<std::tuple<float, float, float>> generateUniform2DPositions(int n = 25, float areaHalfSize = globals::AXIS_LENGTH, float minRadius = 0.3f, float maxRadius = 0.3f);
 
+	void addPhysicsObject(std::unique_ptr<PhysicsObject> obj);
 	virtual void setupFixedObjects() = 0; // Pure virtual function to be implemented in derived classes
 
 	// helper method(s)
@@ -74,21 +72,13 @@ public:
 	void renderObjects();
 	void onFrameUpdate(float dt = 0.016f);
 
+	std::optional<std::pair<DirectX::XMFLOAT3, float>> getNextSpawn(); // returns position and radius of the next spawn, or std::nullopt if no more spawns are available
+
 	void processPendingSpawns();
 
 	void spawnMovingSphere();
 	void setNumMovingSpheres(int n) { numMovingSpheres = n; }
 	void setMinRadius(float r) { minRadius = r; }
 	void setMaxRadius(float r) { maxRadius = r; }
-	void setPhysicsManager(std::shared_ptr<PhysicsManager> physicsManager) 
-	{
-		std::unique_lock<std::shared_mutex> lock(_physicsManagerMutex);
-		_physicsManager = std::move(physicsManager);
-	}
-	std::shared_ptr<PhysicsManager> getPhysicsManager()
-	{
-		std::shared_lock<std::shared_mutex> lock(_physicsManagerMutex);
-		return _physicsManager;
-	}
 };
 

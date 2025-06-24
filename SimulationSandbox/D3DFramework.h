@@ -130,42 +130,24 @@ class D3DFramework final {
 	Camera _camera;
 
 	std::unique_ptr<Scenario> _scenario;
-	std::shared_ptr<PhysicsManager> _physicsManager;
 
 	static std::unique_ptr<D3DFramework> _instance;
-
-	// threading
-	std::vector<std::thread> _physicsThreads;
-	std::atomic<bool> _isRunning = false;
-	std::atomic<float> _actualPhysicsHz = 0.0f;
-	std::atomic<int> _physicsStepCounter = 0;
-	std::chrono::steady_clock::time_point _physicsFreqStart;
-
-	void startPhysicsThreads(int numThreads);
-	void stopPhysicsThreads();
 
 	void initImGui();
 	void renderImGui();
 
 	void setScenario(std::unique_ptr<Scenario> scenario)
 	{
-		stopPhysicsThreads(); 
 		if (_scenario)
 			_scenario->onUnload();
 
-		_physicsManager = std::make_shared<PhysicsManager>(); 
-		scenario->setPhysicsManager(_physicsManager);        
+		if (!_pd3dDevice || !_pImmediateContext) {
+			OutputDebugString(L"[ERROR] Device or context is null!\n");
+		}
 		scenario->setDeviceAndContext(_pd3dDevice, _pImmediateContext);
 
 		_scenario = std::move(scenario);
 		_scenario->onLoad();
-
-		unsigned int totalCores = std::thread::hardware_concurrency();
-		unsigned int simThreadCount = (totalCores > 3) ? totalCores - 3 : 1; // Core 0,1,2 not to be used for physics simulation
-		// output simThreadCount with OutputDebugString
-		std::string msg = ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>Simulation threads: " + std::to_string(simThreadCount) + "\n";
-		OutputDebugStringA(msg.c_str());
-		startPhysicsThreads(simThreadCount);
 	}
 
 public:
@@ -189,6 +171,8 @@ public:
 	HWND getWindowHandle() const { return _hWnd; }
 	ID3D11Device* getDevice() const { return _pd3dDevice; }
 	ID3D11DeviceContext* getDeviceContext() const { return _pImmediateContext; }
+
+	Scenario* getScenario() const { return _scenario.get(); }
 
 	void setBackgroudColor(const XMFLOAT4& colour) { _bgColour = colour; }
 	XMFLOAT4 getBackgroundColor() const { return _bgColour; }

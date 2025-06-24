@@ -185,6 +185,7 @@
     <ClInclude Include="Cylinder.h" />
     <ClInclude Include="D3DFramework.h" />
     <ClInclude Include="globals.h" />
+    <ClInclude Include="NetworkManager.h" />
     <ClInclude Include="NotImplementedException.h" />
     <ClInclude Include="PhysicsManager.h" />
     <ClInclude Include="PhysicsObject.h" />
@@ -226,6 +227,7 @@
     <ClCompile Include="ImGui\imgui_draw.cpp" />
     <ClCompile Include="ImGui\imgui_tables.cpp" />
     <ClCompile Include="ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="NetworkManager.cpp" />
     <ClCompile Include="PhysicsManager.cpp" />
     <ClCompile Include="PhysicsObject.cpp" />
     <ClCompile Include="Plane.cpp" />

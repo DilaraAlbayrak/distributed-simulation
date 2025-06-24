@@ -88,48 +88,6 @@ LRESULT CALLBACK D3DFramework::wndProc(HWND hWnd, UINT message, WPARAM wParam, L
 	return 0;
 }
 
-void D3DFramework::startPhysicsThreads(int numThreads)
-{
-	_isRunning = true;
-	_physicsFreqStart = std::chrono::steady_clock::now();
-	_physicsStepCounter = 0;
-	_physicsThreads.resize(numThreads);
-
-	int baseCore = 3; // Core 3 and onwards are reserved for simulation
-
-	for (int i = 0; i < numThreads; ++i) {
-		_physicsThreads[i] = std::thread([this, i, numThreads, baseCore] {
-			int coreID = baseCore + i;
-			SetThreadAffinityMask(GetCurrentThread(), static_cast<DWORD_PTR>(1) << coreID);
-
-			while (_isRunning) {
-				if (_physicsManager) {
-					_physicsManager->updatePartitioned(i, numThreads, fixedTimestep);
-				}
-
-				++_physicsStepCounter;
-				auto now = std::chrono::steady_clock::now();
-				if (now - _physicsFreqStart >= std::chrono::seconds(1)) {
-					_actualPhysicsHz = static_cast<float>(_physicsStepCounter);
-					_physicsStepCounter = 0;
-					_physicsFreqStart = now;
-				}
-
-				std::this_thread::yield();
-			}
-			});
-	}
-}
-
-void D3DFramework::stopPhysicsThreads() {
-	_isRunning = false;
-	for (auto& t : _physicsThreads) {
-		if (t.joinable())
-			t.join();
-	}
-	_physicsThreads.clear();
-}
-
 //--------------------------------------------------------------------------------------
 // Register class and create window
 //--------------------------------------------------------------------------------------
@@ -465,7 +423,6 @@ void D3DFramework::renderImGui() {
 //--------------------------------------------------------------------------------------
 D3DFramework::~D3DFramework()
 {
-	stopPhysicsThreads();
 	try {
 		if (_pImmediateContext)
 			_pImmediateContext->ClearState();

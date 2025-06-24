@@ -42,6 +42,7 @@ void Scenario1::onLoad()
 {
 	OutputDebugString(L">>>>>>>>>> Scenario1::onLoad\n");
 
+	initObjects();
 	spawnRoom();
 
 	setupFixedObjects();
@@ -56,7 +57,6 @@ void Scenario1::onLoad()
 	generateSpawnData(globals::AXIS_LENGTH);
 	OutputDebugString(L">>>>>>>>>> Scenario1::generateSpawnData\n");
 
-	initObjects();
 	OutputDebugString(L">>>>>>>>>> Scenario1::initObjects\n");
 }
 

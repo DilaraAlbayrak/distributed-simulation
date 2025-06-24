@@ -1,4 +1,9 @@
 #include "PhysicsManager.h"
+#include <basetsd.h>
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
+std::unique_ptr<PhysicsManager> PhysicsManager::_instance = std::make_unique<PhysicsManager>();
 
 void PhysicsManager::addObject(std::shared_ptr<PhysicsObject> obj)
 {
@@ -12,68 +17,97 @@ void PhysicsManager::clearObjects()
 	_physicsObjects.clear();
 }
 
-void PhysicsManager::updatePartitioned(int threadIndex, int numThreads, float dt)
-{
-    std::shared_lock readLock(_mutex);
-    const size_t count = _physicsObjects.size();
-    if (count == 0 || numThreads == 0 || threadIndex >= numThreads) return;
-
-    const size_t perThread = std::max<size_t>(1, count / numThreads);
-    const size_t start = threadIndex * perThread;
-    const size_t end = (threadIndex == numThreads - 1) ? count : start + perThread;
-
-    // Save previous positions
-    for (size_t i = start; i < end; ++i) {
-        _physicsObjects[i]->resetPositionRestorationFlag();
-        _physicsObjects[i]->savePreviousPosition();
-    }
-
-    // Integrate motion
-    for (size_t i = start; i < end; ++i) {
-        _physicsObjects[i]->Update(dt);
-    }
-
-	// Intra-thread collision - collision detection and resolution within the same thread
-    for (size_t i = start; i < end; ++i) {
-        for (size_t j = i + 1; j < end; ++j) {
-            auto* a = _physicsObjects[i].get();
-            auto* b = _physicsObjects[j].get();
-            if (a > b) std::swap(a, b);
-
-            float penetration = 0.0f;
-            DirectX::XMFLOAT3 normal;
-            if (a->checkCollision(*b, normal, penetration)) {
-                std::scoped_lock lock(a->getCollisionMutex(), b->getCollisionMutex());
-                a->resolveCollision(*b, normal, penetration);
-            }
-        }
-    }
-
-	// Inter-thread collision (evenly distributed) - collision detection and resolution between different threads
-    for (size_t i = 0; i < count; ++i) {
-        size_t part_i = i / perThread;
-        for (size_t j = i + 1; j < count; ++j) {
-            size_t part_j = j / perThread;
-            if (part_i == part_j) continue;
-            if ((i + j) % numThreads != threadIndex) continue;
-
-            auto* a = _physicsObjects[i].get();
-            auto* b = _physicsObjects[j].get();
-            if (a > b) std::swap(a, b);
-
-            float penetration = 0.0f;
-            DirectX::XMFLOAT3 normal;
-            if (a->checkCollision(*b, normal, penetration)) {
-                std::scoped_lock lock(a->getCollisionMutex(), b->getCollisionMutex());
-                a->resolveCollision(*b, normal, penetration);
-            }
-        }
-    }
-}
-
-
 std::span<const std::shared_ptr<PhysicsObject>> PhysicsManager::accessPhysicsObjects() const
 {
-	std::shared_lock lock(_mutex); // Use shared_lock for read-only access to the shared resource
-	return { _physicsObjects.begin(), _physicsObjects.end() };
+    std::shared_lock lock(_mutex); // Use shared_lock for read-only access to the shared resource
+    return { _physicsObjects.begin(), _physicsObjects.end() };
+}
+
+void PhysicsManager::updatePartitioned(int threadIndex, int numThreads, float dt)
+{
+	std::shared_lock readLock(_mutex);
+	const size_t count = _physicsObjects.size();
+	if (count == 0 || numThreads == 0 || threadIndex >= numThreads) return;
+
+	const size_t perThread = std::max<size_t>(1, count / numThreads);
+	const size_t start = threadIndex * perThread;
+	const size_t end = (threadIndex == numThreads - 1) ? count : start + perThread;
+
+	// Save previous positions
+	for (size_t i = start; i < end; ++i) {
+		_physicsObjects[i]->resetPositionRestorationFlag();
+		_physicsObjects[i]->savePreviousPosition();
+	}
+
+	// Integrate motion
+	for (size_t i = start; i < end; ++i) {
+		_physicsObjects[i]->Update(dt);
+	}
+
+	// Intra-thread collision, collision detection and resolution within the same thread
+	for (size_t i = start; i < end; ++i) {
+		for (size_t j = i + 1; j < end; ++j) {
+			auto* a = _physicsObjects[i].get();
+			auto* b = _physicsObjects[j].get();
+			if (a > b) std::swap(a, b);
+
+			float penetration = 0.0f;
+			DirectX::XMFLOAT3 normal;
+			if (a->checkCollision(*b, normal, penetration)) {
+				std::scoped_lock lock(a->getCollisionMutex(), b->getCollisionMutex());
+				a->resolveCollision(*b, normal, penetration);
+			}
+		}
+	}
+
+	// Inter-thread collision, collision detection and resolution between different threads
+	for (size_t i = 0; i < count; ++i) {
+		size_t part_i = i / perThread;
+		for (size_t j = i + 1; j < count; ++j) {
+			size_t part_j = j / perThread;
+			if (part_i == part_j) continue;
+			if ((i + j) % numThreads != threadIndex) continue;
+
+			auto* a = _physicsObjects[i].get();
+			auto* b = _physicsObjects[j].get();
+			if (a > b) std::swap(a, b);
+
+			float penetration = 0.0f;
+			DirectX::XMFLOAT3 normal;
+			if (a->checkCollision(*b, normal, penetration)) {
+				std::scoped_lock lock(a->getCollisionMutex(), b->getCollisionMutex());
+				a->resolveCollision(*b, normal, penetration);
+			}
+		}
+	}
+}
+
+void PhysicsManager::startThreads(int numThreads, float dt)
+{
+	_running = true;
+
+	for (int i = 0; i < numThreads; ++i)
+	{
+		_threads.emplace_back([=]() {
+			DWORD_PTR mask = 1ULL << (3 + i); // assign thread to core 3+i
+			SetThreadAffinityMask(GetCurrentThread(), mask);
+
+			while (_running)
+			{
+				updatePartitioned(i, numThreads, dt);
+				std::this_thread::sleep_for(std::chrono::duration<float>(dt));
+			}
+			});
+	}
+}
+
+void PhysicsManager::stopThreads()
+{
+	_running = false;
+	for (auto& thread : _threads)
+	{
+		if (thread.joinable())
+			thread.join();
+	}
+	_threads.clear();
 }
