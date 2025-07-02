@@ -1,106 +1,90 @@
 #include "Scenario.h"
+#include "PhysicsManager.h" // Crucial for the new architecture
 #include "Sphere.h"
 #include "Plane.h"
-#include "PhysicsManager.h"
+#include "ShaderManager.h"
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
 #include <random>
 #include <algorithm>
+#include <cmath>
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
+//======================================================================================
+// CORE LOGIC & RESOURCE MANAGEMENT
+//======================================================================================
+
+/**
+ * @brief Initializes all necessary GPU resources for a single PhysicsObject.
+ * This function uses the correct implementation you provided.
+ * @param obj A raw pointer to the object whose model data will be used.
+ * @return S_OK on success, or an HRESULT error code on failure.
+ */
 HRESULT Scenario::initRenderingResources(PhysicsObject* obj)
 {
-	if (!device || !context)
-	{
-		OutputDebugString(L"[FATAL] device or context is nullptr in initRenderingResources()\n");
+	if (!device || !context) {
+		OutputDebugString(L"[FATAL] Scenario::initRenderingResources - device or context is nullptr.\n");
+		return E_FAIL;
+	}
+	const auto& vertices = obj->getVertices();
+	const auto& indices = obj->getIndices();
+	if (vertices.empty() || indices.empty()) {
+		OutputDebugString(L"[WARNING] Scenario::initRenderingResources - Object model data is empty.\n");
 		return E_FAIL;
 	}
 
-	const std::vector<Vertex>& vertices = obj->getVertices();
-	const std::vector<int>& indices = obj->getIndices();
-
-	if (vertices.empty() || indices.empty())
-		return E_FAIL;
-
-	// **Define input layout for this object**
-	D3D11_INPUT_ELEMENT_DESC layout[] =
-	{
+	D3D11_INPUT_ELEMENT_DESC layout[] = {
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, sizeof(DirectX::XMFLOAT3), D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(DirectX::XMFLOAT3) + sizeof(DirectX::XMFLOAT4), D3D11_INPUT_PER_VERTEX_DATA, 0 }
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, sizeof(DirectX::XMFLOAT3) * 2, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
-
 	CComPtr<ID3D11InputLayout> inputLayout;
-	HRESULT hr = device->CreateInputLayout(
-		layout, ARRAYSIZE(layout),
-		vertexShaderBlob->GetBufferPointer(),
-		vertexShaderBlob->GetBufferSize(),
-		&inputLayout
-	);
-
-	if (FAILED(hr))
-	{
-		OutputDebugString(L"Failed to create input layout\n");
+	HRESULT hr = device->CreateInputLayout(layout, ARRAYSIZE(layout), vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &inputLayout);
+	if (FAILED(hr)) {
+		OutputDebugString(L"Failed to create input layout.\n");
 		return hr;
 	}
-
 	inputLayouts.push_back(inputLayout);
 
-	// **Create vertex buffer**
-	D3D11_BUFFER_DESC vertexBufferDesc = {};
-	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	vertexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(Vertex) * vertices.size());
-	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-
-	D3D11_SUBRESOURCE_DATA vertexInitData = {};
-	vertexInitData.pSysMem = vertices.data();
-
-	CComPtr<ID3D11Buffer> vertexBuffer;
-	hr = device->CreateBuffer(&vertexBufferDesc, &vertexInitData, &vertexBuffer);
+	D3D11_BUFFER_DESC bd = {};
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.ByteWidth = static_cast<UINT>(sizeof(Vertex) * vertices.size());
+	D3D11_SUBRESOURCE_DATA initData = {};
+	initData.pSysMem = vertices.data();
+	CComPtr<ID3D11Buffer> vb;
+	hr = device->CreateBuffer(&bd, &initData, &vb);
 	if (FAILED(hr)) return hr;
+	vertexBuffers.push_back(vb);
 
-	vertexBuffers.push_back(vertexBuffer);
-
-	// **Create index buffer**
-	D3D11_BUFFER_DESC indexBufferDesc = {};
-	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	indexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(int) * indices.size());
-	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-
-	D3D11_SUBRESOURCE_DATA indexInitData = {};
-	indexInitData.pSysMem = indices.data();
-
-	CComPtr<ID3D11Buffer> indexBuffer;
-	hr = device->CreateBuffer(&indexBufferDesc, &indexInitData, &indexBuffer);
+	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bd.ByteWidth = static_cast<UINT>(sizeof(int) * indices.size());
+	initData.pSysMem = indices.data();
+	CComPtr<ID3D11Buffer> ib;
+	hr = device->CreateBuffer(&bd, &initData, &ib);
 	if (FAILED(hr)) return hr;
-
-	indexBuffers.push_back(indexBuffer);
+	indexBuffers.push_back(ib);
 	indexCounts.push_back(static_cast<UINT>(indices.size()));
 
-	D3D11_BUFFER_DESC cbDesc = {};
-	cbDesc.Usage = D3D11_USAGE_DEFAULT;
-	cbDesc.ByteWidth = sizeof(ConstantBuffer);
-	cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	CComPtr <ID3D11Buffer> constantBuffer;
-	device->CreateBuffer(&cbDesc, nullptr, &constantBuffer);
-	constantBuffers.push_back(constantBuffer);
+	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bd.ByteWidth = sizeof(ConstantBuffer);
+	CComPtr<ID3D11Buffer> cb;
+	hr = device->CreateBuffer(&bd, nullptr, &cb);
+	if (FAILED(hr)) return hr;
+	constantBuffers.push_back(cb);
 
-	// Set primitive topology
 	context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
 	return S_OK;
 }
 
+/**
+ * @brief Loads the vertex and pixel shaders for the scenario.
+ * This implementation needs to be corrected to use the singleton properly.
+ * @param shaderFile The path to the compiled shader object (.cso) or shader source (.fx).
+ */
 void Scenario::initObjects(const std::wstring& shaderFile)
 {
-	vertexBuffers.clear();
-	indexBuffers.clear();
-	inputLayouts.clear();
-	indexCounts.clear();
-	constantBuffers.clear();
-	physicsObjects.clear();
-
 	HRESULT hr = ShaderManager::getInstance(device)->compileShaderFromFile(shaderFile.c_str(), "VS", "vs_5_0", &vertexShaderBlob);
 	if (FAILED(hr)) return;
 	hr = device->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), nullptr, &vertexShader);
@@ -111,46 +95,116 @@ void Scenario::initObjects(const std::wstring& shaderFile)
 	hr = device->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), nullptr, &pixelShader);
 }
 
+void Scenario::unloadScenario()
+{
+	// 1. Clear local rendering resources owned by this Scenario instance.
+	vertexBuffers.clear();
+	indexBuffers.clear();
+	inputLayouts.clear();
+	constantBuffers.clear();
+	indexCounts.clear();
+
+	// 2. Clear all physics objects from the central PhysicsManager.
+	PhysicsManager::getInstance().clearObjects();
+
+	// 3. Clear spawn data and any pending requests to ensure a clean state.
+	spawnData.clear();
+	spawnIndex = 0;
+	{
+		std::scoped_lock lock(_spawnMutex);
+		_pendingSpawns.clear();
+	}
+}
+
+/**
+ * @brief Private helper to finalize object creation. It creates rendering resources
+ * and then transfers ownership of the PhysicsObject to the PhysicsManager.
+ * @param obj A unique_ptr to the newly created PhysicsObject.
+ */
 void Scenario::addPhysicsObject(std::unique_ptr<PhysicsObject> obj)
 {
-	std::shared_ptr<PhysicsObject> shared = std::move(obj);
+	if (!obj) return;
 
-	if (FAILED(initRenderingResources(shared.get()))) {
-		OutputDebugString(L"[ERROR] Rendering resources creation failed\n");
+	// Create the rendering resources for this object.
+	if (FAILED(initRenderingResources(obj.get())))
+	{
+		OutputDebugString(L"[ERROR] Failed to initialize rendering resources. Object not added.\n");
 		return;
 	}
 
-	PhysicsManager::getInstance().addObject(shared);
-	physicsObjects.push_back(shared);
+	// Transfer ownership to the PhysicsManager.
+	PhysicsManager::getInstance().addObject(std::move(obj));
 }
 
-void Scenario::renderObjects()
+//======================================================================================
+// OBJECT CREATION & SPAWNING
+//======================================================================================
+
+/**
+ * @brief Queues a request to spawn a new sphere. This function is lightweight and thread-safe.
+ * It gets data from the pre-calculated spawn list.
+ */
+void Scenario::spawnMovingSphere()
 {
-	if (!vertexShader || !pixelShader) return;
+	// Get the pre-calculated spawn data
+	if (spawnIndex >= spawnData.size()) return;
 
-	if (physicsObjects.size() != vertexBuffers.size()) return;
+	// Note: This part is not thread-safe by itself. If you call spawnMovingSphere from multiple threads,
+	// you'll need to protect spawnIndex as well. For now, assuming it's called from the main thread.
+	auto& data = spawnData[spawnIndex++];
 
-	for (size_t i = 0; i < physicsObjects.size(); ++i)
+	// Create a spawn request
+	SpawnRequest request;
+	request.position = { std::get<0>(data), globals::AXIS_LENGTH - 0.5f, std::get<1>(data) };
+	request.radius = std::get<2>(data);
+
+	// Add the request to the pending queue in a thread-safe way
+	std::scoped_lock lock(_spawnMutex);
+	_pendingSpawns.push_back(request);
+}
+
+/**
+ * @brief Processes all queued spawn requests. This must be called on the main/render thread.
+ * It creates the actual PhysicsObject, its GPU resources, and adds it to the simulation.
+ */
+void Scenario::processPendingSpawns()
+{
+	// Quickly copy requests and clear the queue to minimize lock time.
+	std::vector<SpawnRequest> requestsToProcess;
 	{
-		context->VSSetShader(vertexShader, nullptr, 0);
-		context->PSSetShader(pixelShader, nullptr, 0);
-		context->IASetInputLayout(inputLayouts[i]);
+		std::scoped_lock lock(_spawnMutex);
+		if (_pendingSpawns.empty())
+		{
+			return;
+		}
+		requestsToProcess.swap(_pendingSpawns);
+	}
 
-		UINT stride = sizeof(Vertex);
-		UINT offset = 0;
-		ID3D11Buffer* vb = vertexBuffers[i];
-		context->IASetVertexBuffers(0, 1, &vb, &stride, &offset);
-		context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R32_UINT, 0);
+	// Now process the copied requests without holding the lock.
+	for (const auto& request : requestsToProcess)
+	{
+		float scale = request.radius;
 
-		ConstantBuffer cb = physicsObjects[i]->getConstantBuffer();
-		context->UpdateSubresource(constantBuffers[i], 0, nullptr, &cb, 0, 0);
-		context->VSSetConstantBuffers(1, 1, &constantBuffers[i]);
-		context->PSSetConstantBuffers(1, 1, &constantBuffers[i]);
+		auto sphere = std::make_unique<PhysicsObject>(
+			std::make_unique<Sphere>(
+				request.position,
+				DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
+				DirectX::XMFLOAT3(scale, scale, scale)
+			),
+			false, 1.0f, Material::MAT1
+		);
+		sphere->LoadModel("sphere.sjg");
+		sphere->setIntegrationMethod(integrationMethod);
 
-		context->DrawIndexed(indexCounts[i], 0, 0);
+		// This private helper creates resources and passes ownership to PhysicsManager
+		addPhysicsObject(std::move(sphere));
 	}
 }
 
+/**
+ * @brief Creates the 6 planes that form the boundary of the simulation room.
+ * This uses the corrected `addPhysicsObject` flow internally.
+ */
 void Scenario::spawnRoom()
 {
 	auto createWallPlane = [&](const DirectX::XMFLOAT3& position,
@@ -219,107 +273,92 @@ void Scenario::spawnRoom()
 
 }
 
-std::optional<std::pair<DirectX::XMFLOAT3, float>> Scenario::getNextSpawn()
+//======================================================================================
+// RENDERING & FRAME LOGIC
+//======================================================================================
+
+/**
+ * @brief Renders all objects in the scene.
+ * This function now gets the list of objects directly from the PhysicsManager in a thread-safe manner.
+ */
+void Scenario::renderObjects()
 {
-	std::scoped_lock lock(_spawnMutex);
+	if (!vertexShader || !pixelShader || !context) return;
 
-	if (spawnIndex >= spawnData.size())
-		return std::nullopt;
+	auto& physicsManager = PhysicsManager::getInstance();
 
-	const auto& [x, z, radius] = spawnData[spawnIndex++];
-	float y = globals::AXIS_LENGTH - (radius * 2.0f) * 1.2f;
-	return std::make_pair(DirectX::XMFLOAT3(x, y, z), radius);
+	// Call the new accessor function and provide a lambda that contains the rendering logic.
+	physicsManager.accessPhysicsObjects([&](std::span<const std::shared_ptr<PhysicsObject>> objectsToRender) {
+
+		// The code inside this lambda is executed while the physics manager's mutex is locked.
+
+		if (objectsToRender.size() != vertexBuffers.size())
+		{
+			return; // Mismatch, exit safely.
+		}
+
+		context->VSSetShader(vertexShader, nullptr, 0);
+		context->PSSetShader(pixelShader, nullptr, 0);
+
+		for (size_t i = 0; i < objectsToRender.size(); ++i)
+		{
+			const auto& obj = objectsToRender[i];
+			if (!obj) continue;
+
+			// Set resources for this object
+			context->IASetInputLayout(inputLayouts[i]);
+			UINT stride = sizeof(Vertex);
+			UINT offset = 0;
+			context->IASetVertexBuffers(0, 1, &vertexBuffers[i].p, &stride, &offset);
+			context->IASetIndexBuffer(indexBuffers[i], DXGI_FORMAT_R32_UINT, 0);
+
+			// Update and set constant buffer
+			ConstantBuffer cb = obj->getConstantBuffer();
+			context->UpdateSubresource(constantBuffers[i], 0, nullptr, &cb, 0, 0);
+			context->VSSetConstantBuffers(1, 1, &constantBuffers[i].p);
+			context->PSSetConstantBuffers(1, 1, &constantBuffers[i].p);
+
+			// Draw the object
+			context->DrawIndexed(indexCounts[i], 0, 0);
+		}
+		}); // End of lambda
 }
 
-void Scenario::processPendingSpawns()
-{
-	auto result = getNextSpawn();
-	if (!result.has_value()) return;
-
-	const auto& [pos, radius] = result.value();
-	float scale = radius * 2.0f;
-
-	auto sphere = std::make_unique<PhysicsObject>(
-		std::make_unique<Sphere>(
-			pos,
-			DirectX::XMFLOAT3(0, 0, 0),
-			DirectX::XMFLOAT3(scale, scale, scale)
-		),
-		false
-	);
-
-	sphere->LoadModel("sphere.sjg");
-	addPhysicsObject(std::move(sphere));
-}
-
-void Scenario::spawnMovingSphere()
-{
-	if (spawnIndex >= spawnData.size()) return;
-	const auto& [x, z, radius] = spawnData[spawnIndex++];
-	float scale = radius * 2.0f;
-	float y = globals::AXIS_LENGTH - scale * 1.2f;
-
-	auto sphere = std::make_unique<PhysicsObject>(
-		std::make_unique<Sphere>(
-			DirectX::XMFLOAT3(x, y, z),
-			DirectX::XMFLOAT3(0, 0, 0),
-			DirectX::XMFLOAT3(scale, scale, scale)
-		),
-		false
-	);
-
-	sphere->LoadModel("sphere.sjg");
-	addPhysicsObject(std::move(sphere));
-}
-
-void Scenario::unloadScenario()
-{
-	vertexBuffers.clear();
-	indexBuffers.clear();
-	inputLayouts.clear();
-	constantBuffers.clear();
-	indexCounts.clear();
-	physicsObjects.clear();
-}
-
-void Scenario::applySharedGUI()
-{
-	ImGui::Begin("Scenario Controls");
-	ImGui::PushItemWidth(100);
-	if (ImGui::RadioButton("Semi-Implicit Euler", integrationMethod == 0)) integrationMethod = 0;
-	ImGui::SameLine();
-	if (ImGui::RadioButton("RK4", integrationMethod == 1)) integrationMethod = 1;
-	ImGui::PopItemWidth();
-	ImGui::End();
-}
-
+/**
+ * @brief Logic to be executed on the main thread every frame.
+ * @param dt Delta time for frame-rate independent logic.
+ */
 void Scenario::onFrameUpdate(float dt) {
-	// spawnMovingSphere(); // you may call this manually
+	// This is a good place for logic that must run on the main thread.
 }
+
+//======================================================================================
+// HELPERS & GUI
+//======================================================================================
 
 std::vector<std::tuple<float, float, float>> Scenario::generateUniform2DPositions(int n, float areaHalfSize, float minRadius, float maxRadius)
 {
+	if (n <= 0) return {};
 	int gridSize = static_cast<int>(ceil(sqrt(n)));
 	float cellSize = (areaHalfSize * 2.0f) / gridSize;
-
 	std::vector<std::tuple<float, float, float>> positions;
 	positions.reserve(n);
-
-	for (int i = 0; i < gridSize && positions.size() < n; ++i)
-		for (int j = 0; j < gridSize && positions.size() < n; ++j)
-		{
+	for (int i = 0; i < gridSize && positions.size() < n; ++i) {
+		for (int j = 0; j < gridSize && positions.size() < n; ++j) {
 			float radius = randomFloat(minRadius, maxRadius);
 			float minX = -areaHalfSize + i * cellSize;
 			float minZ = -areaHalfSize + j * cellSize;
 			float centerX = minX + cellSize / 2.0f;
 			float centerZ = minZ + cellSize / 2.0f;
-			float margin = cellSize / 2.0f - (radius * 2.0f);
+			float margin = std::max(0.0f, cellSize / 2.0f - radius);
 			float x = randomFloat(centerX - margin, centerX + margin);
 			float z = randomFloat(centerZ - margin, centerZ + margin);
 			positions.emplace_back(x, z, radius);
 		}
-
-	std::shuffle(positions.begin(), positions.end(), std::mt19937(std::random_device{}()));
+	}
+	auto rd = std::random_device{};
+	auto rng = std::mt19937{ rd() };
+	std::shuffle(positions.begin(), positions.end(), rng);
 	return positions;
 }
 
@@ -328,4 +367,17 @@ float Scenario::randomFloat(float min, float max)
 	static thread_local std::mt19937 generator(std::random_device{}());
 	std::uniform_real_distribution<float> distribution(min, max);
 	return distribution(generator);
+}
+
+void Scenario::applySharedGUI()
+{
+	ImGui::Begin("Scenario Controls");
+	ImGui::PushItemWidth(150);
+	if (ImGui::RadioButton("Semi-Implicit Euler", &integrationMethod, 0)) {}
+	ImGui::SameLine();
+	if (ImGui::RadioButton("RK4", &integrationMethod, 1)) {}
+	ImGui::SameLine();
+	if (ImGui::RadioButton("Midpoint", &integrationMethod, 1)) {}
+	ImGui::PopItemWidth();
+	ImGui::End();
 }

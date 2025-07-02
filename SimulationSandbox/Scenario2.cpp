@@ -73,6 +73,8 @@ void Scenario2::onLoad()
 {
 	OutputDebugString(L">>>>>>>>>> Scenario2::onLoad\n");
 
+	initObjects();
+
 	spawnRoom();
 
 	setupFixedObjects();
@@ -81,8 +83,6 @@ void Scenario2::onLoad()
 	setMinRadius(0.1f);
 	setMaxRadius(0.1f);
 	generateSpawnData(globals::AXIS_LENGTH);
-
-	initObjects();
 }
 
 void Scenario2::onUnload()

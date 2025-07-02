@@ -130,6 +130,7 @@ class D3DFramework final {
 	Camera _camera;
 
 	std::unique_ptr<Scenario> _scenario;
+	std::atomic<bool> _scenarioReady{ false };
 
 	static std::unique_ptr<D3DFramework> _instance;
 
@@ -138,6 +139,8 @@ class D3DFramework final {
 
 	void setScenario(std::unique_ptr<Scenario> scenario)
 	{
+		_scenarioReady = false;
+
 		if (_scenario)
 			_scenario->onUnload();
 
@@ -148,6 +151,7 @@ class D3DFramework final {
 
 		_scenario = std::move(scenario);
 		_scenario->onLoad();
+		_scenarioReady = true;
 	}
 
 public:
@@ -173,6 +177,7 @@ public:
 	ID3D11DeviceContext* getDeviceContext() const { return _pImmediateContext; }
 
 	Scenario* getScenario() const { return _scenario.get(); }
+	bool isScenarioReady() const { return _scenarioReady; }
 
 	void setBackgroudColor(const XMFLOAT4& colour) { _bgColour = colour; }
 	XMFLOAT4 getBackgroundColor() const { return _bgColour; }

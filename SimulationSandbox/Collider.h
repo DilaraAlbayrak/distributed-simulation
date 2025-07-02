@@ -41,4 +41,3 @@ public:
 	void incrementRotation(DirectX::XMFLOAT3 increment) { _rotation.x += increment.x; _rotation.y += increment.y; _rotation.z += increment.z; }
 	void incrementScale(DirectX::XMFLOAT3 increment) { _scale.x += increment.x; _scale.y += increment.y; _scale.z += increment.z; }
 };
-

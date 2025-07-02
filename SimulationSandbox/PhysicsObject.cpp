@@ -146,34 +146,31 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
 
     if (isFixed && other.isFixed) return;
 
-    std::scoped_lock lock(collisionMutex, other.collisionMutex);
-
-    // Relative velocity
+    // --- 1. Calculate Relative Velocity ---
     DirectX::XMFLOAT3 relativeVelocity = {
         velocity.x - other.velocity.x,
         velocity.y - other.velocity.y,
         velocity.z - other.velocity.z
     };
 
-    // Velocity along collision normal
     float velocityAlongNormal =
         relativeVelocity.x * collisionNormal.x +
         relativeVelocity.y * collisionNormal.y +
         relativeVelocity.z * collisionNormal.z;
 
-    if (velocityAlongNormal > 0.0f) return; // Already separating
+    if (velocityAlongNormal > 0.0f) return;
 
+    // --- 2. Calculate and Apply Collision Impulse ---
     float invMassA = isFixed ? 0.0f : inverseMass;
     float invMassB = other.isFixed ? 0.0f : other.inverseMass;
     float invMassSum = invMassA + invMassB;
-    if (invMassSum <= 1e-5f) return;
 
-    // Elasticity lookup
+    if (invMassSum <= 1e-6f) return;
+
     int matA = static_cast<int>(material);
     int matB = static_cast<int>(other.material);
     float e = elasticityLookup[matA][matB];
 
-    // Impulse calculation
     float impulseMagnitude = -(1.0f + e) * velocityAlongNormal / invMassSum;
 
     DirectX::XMFLOAT3 impulse = {
@@ -194,11 +191,53 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
         other.velocity.z -= impulse.z * invMassB;
     }
 
-    // Positional correction using penetration depth
-    float percent = 0.8f; // usually 20–80%
-    float slop = 0.01f;   // allowed overlap threshold
+    // --- 3. Calculate and Apply Friction Impulse ---
+    relativeVelocity = {
+        velocity.x - other.velocity.x,
+        velocity.y - other.velocity.y,
+        velocity.z - other.velocity.z
+    };
 
-    float correctionMag = (std::max)((penetrationDepth - slop), 0.0f) / invMassSum * percent;
+    XMVECTOR vRel = XMLoadFloat3(&relativeVelocity);
+    XMVECTOR vNorm = XMLoadFloat3(&collisionNormal);
+    XMVECTOR velTangent = vRel - vNorm * XMVector3Dot(vRel, vNorm);
+    float tangentSpeedSq = XMVectorGetX(XMVector3LengthSq(velTangent));
+
+    if (tangentSpeedSq > 1e-6f)
+    {
+        XMVECTOR tangentDirection = XMVector3Normalize(velTangent);
+        float frictionCoefficient = 0.4f;
+
+        float jt = -XMVectorGetX(XMVector3Dot(vRel, tangentDirection));
+        jt /= invMassSum;
+
+        if (jt > impulseMagnitude * frictionCoefficient)
+        {
+            jt = impulseMagnitude * frictionCoefficient;
+        }
+
+        XMVECTOR frictionImpulseVec = tangentDirection * jt;
+        XMFLOAT3 frictionImpulse;
+        XMStoreFloat3(&frictionImpulse, frictionImpulseVec);
+
+        if (!isFixed)
+        {
+            velocity.x += frictionImpulse.x * invMassA;
+            velocity.y += frictionImpulse.y * invMassA;
+            velocity.z += frictionImpulse.z * invMassA;
+        }
+        if (!other.isFixed)
+        {
+            other.velocity.x -= frictionImpulse.x * invMassB;
+            other.velocity.y -= frictionImpulse.y * invMassB;
+            other.velocity.z -= frictionImpulse.z * invMassB;
+        }
+    }
+
+    // --- 4. Positional Correction (to resolve penetration) ---
+    const float percent = 0.6f;
+    const float slop = 0.01f;
+    float correctionMag = (std::max(penetrationDepth - slop, 0.0f) / invMassSum) * percent;
 
     DirectX::XMFLOAT3 correction = {
         correctionMag * collisionNormal.x,
@@ -206,55 +245,59 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
         correctionMag * collisionNormal.z
     };
 
-    if (!isFixed && _collider)
+    if (!isFixed && _collider) {
         _collider->incrementPosition({
             correction.x * invMassA,
             correction.y * invMassA,
             correction.z * invMassA
             });
+    }
 
-    if (!other.isFixed && other._collider)
+    if (!other.isFixed && other._collider) {
         other._collider->incrementPosition({
             -correction.x * invMassB,
             -correction.y * invMassB,
             -correction.z * invMassB
             });
+    }
 
-    // Gravity-based tangent sliding correction (optional)
-    auto applySlidingCorrection = [](DirectX::XMFLOAT3& vel, const DirectX::XMFLOAT3& normal) {
-        XMVECTOR v = XMLoadFloat3(&vel);
-        XMVECTOR n = XMLoadFloat3(&normal);
+    // --- 5. Smart Sleep and Nudge Logic ---
+    const float sleepEpsilonSq = 0.002f;
+    const float slideThresholdSq = 0.05f; // This threshold might need tuning
+    const float nudgeFactor = 0.1f;      // This controls the strength of the slide nudge
 
-        XMVECTOR vNormal = XMVectorScale(n, XMVectorGetX(XMVector3Dot(v, n)));
-        XMVECTOR vTangent = XMVectorSubtract(v, vNormal);
-        XMVECTOR g = XMLoadFloat3(&globals::gravity);
-        XMVECTOR gNormal = XMVectorScale(n, XMVectorGetX(XMVector3Dot(g, n)));
-        XMVECTOR gTangent = XMVectorSubtract(g, gNormal);
+    auto handle_sleeping_and_nudging = [&](PhysicsObject& obj, const DirectX::XMFLOAT3& normal)
+        {
+            if (obj.isFixed) return;
 
-        float vTangentSq = XMVectorGetX(XMVector3LengthSq(vTangent));
-        float gTangentSq = XMVectorGetX(XMVector3LengthSq(gTangent));
+            XMVECTOR v = XMLoadFloat3(&obj.velocity);
+            if (XMVectorGetX(XMVector3LengthSq(v)) < sleepEpsilonSq)
+            {
+                XMVECTOR g = XMLoadFloat3(&globals::gravity);
+                XMVECTOR n = XMLoadFloat3(&normal);
+                XMVECTOR gTangent = g - n * XMVector3Dot(g, n);
 
-        if (vTangentSq < 0.001f && gTangentSq > 0.001f) {
-            float correctionScale = 0.3f;
-            if (vTangentSq < 1e-3f) correctionScale = 0.4f;
-            if (vTangentSq < 1e-5f) correctionScale = 0.5f;
-            v = XMVectorAdd(v, XMVectorScale(gTangent, correctionScale));
-        }
-
-        v = XMVectorAdd(v, XMVectorScale(gTangent, 0.1f));
-        XMStoreFloat3(&vel, v);
+                if (XMVectorGetX(XMVector3LengthSq(gTangent)) < slideThresholdSq)
+                {
+                    // Tangential gravity is negligible, it's safe to sleep.
+                    obj.setVelocity({ 0.0f, 0.0f, 0.0f });
+                }
+                else
+                {
+                    // Object is on a slope but stopped. Give it a nudge to start sliding.
+                    XMVECTOR nudge = XMVectorScale(gTangent, nudgeFactor * obj.inverseMass);
+                    obj.velocity.x += XMVectorGetX(nudge);
+                    obj.velocity.y += XMVectorGetY(nudge);
+                    obj.velocity.z += XMVectorGetZ(nudge);
+                }
+            }
         };
 
-    if (!isFixed) applySlidingCorrection(velocity, collisionNormal);
-    if (!other.isFixed) applySlidingCorrection(other.velocity, collisionNormal);
-
-    // Restore previous position only once per frame (thread-safe)
-    if (!_positionRestored.exchange(true) && _collider)
-        _collider->setPosition(previousPosition);
-    if (!other._positionRestored.exchange(true) && other._collider)
-        other._collider->setPosition(other.previousPosition);
+    // Apply the logic for both objects
+    handle_sleeping_and_nudging(*this, collisionNormal);
+    XMFLOAT3 otherNormal = { -collisionNormal.x, -collisionNormal.y, -collisionNormal.z };
+    handle_sleeping_and_nudging(other, otherNormal);
 }
-
 
 const ConstantBuffer PhysicsObject::getConstantBuffer() const
 {

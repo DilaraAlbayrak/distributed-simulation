@@ -9,9 +9,9 @@ void Scenario4::onLoad()
 {
 	OutputDebugString(L">>>>>>>>>> Scenario4::onLoad\n");
 
-	spawnRoom();
-
 	initObjects();
+
+	spawnRoom();
 }
 
 void Scenario4::onUnload()

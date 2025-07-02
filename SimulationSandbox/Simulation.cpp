@@ -25,7 +25,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ LPWSTR, _
 	// Main message loop
 	MSG msg;
 	msg.message = 0;
-	while (WM_QUIT != msg.message) {
+	while (WM_QUIT != msg.message) // yoda condition
+	{
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
@@ -35,18 +36,24 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ LPWSTR, _
 		{
 			render.render();
 
-			if (!threadingEnabled && render.getScenario())
+			if (!threadingEnabled && render.isScenarioReady())
 			{
-				// Start physics threads if not already started
 				unsigned int totalCores = std::thread::hardware_concurrency();
 				unsigned int simThreadCount = (totalCores > 3) ? totalCores - 3 : 1;
-				//std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Allow time for the window to initialize
 				physicsManager.startThreads(simThreadCount, 0.008f);
-				
-				// Start network threads if not already started
+
 				threadingEnabled = true;
 			}
+			else if (threadingEnabled && !render.isScenarioReady())
+			{
+				physicsManager.stopThreads();
+				threadingEnabled = false;
+			}
 		}
+	}
+	if (threadingEnabled)
+	{
+		physicsManager.stopThreads();
 	}
 
 	return static_cast<int>(msg.wParam);

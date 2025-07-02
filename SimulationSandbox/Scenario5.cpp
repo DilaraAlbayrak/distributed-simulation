@@ -66,6 +66,8 @@ void Scenario5::onLoad()
 {
 	OutputDebugString(L">>>>>>>>>> Scenario5::onLoad\n");
 
+	initObjects();
+
 	spawnRoom();
 
 	setupFixedObjects();
@@ -74,8 +76,6 @@ void Scenario5::onLoad()
 	setMinRadius(0.1f);
 	setMaxRadius(0.1f);
 	generateSpawnData(globals::AXIS_LENGTH);
-
-	initObjects();
 }
 
 void Scenario5::onUnload()

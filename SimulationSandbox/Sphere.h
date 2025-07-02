@@ -22,4 +22,3 @@ public:
 
 	float getRadius() const { return _radius; }
 };
-

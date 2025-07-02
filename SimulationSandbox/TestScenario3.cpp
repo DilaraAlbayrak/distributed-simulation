@@ -94,9 +94,9 @@ void TestScenario3::onLoad()
 {
 	OutputDebugString(L">>>>>>>>>> TestScenario3::onLoad\n");
 
+	initObjects();
 	spawnRoom();
 	setupFixedObjects();
-	initObjects();
 }
 
 void TestScenario3::onUnload()

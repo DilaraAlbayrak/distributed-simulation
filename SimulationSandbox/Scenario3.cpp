@@ -11,14 +11,14 @@ void Scenario3::onLoad()
 {
 	OutputDebugString(L">>>>>>>>>> Scenario3::onLoad\n");
 
+	initObjects();
+
 	spawnRoom();
 
 	setNumMovingSpheres(100000);
 	setMinRadius(0.01f);
 	setMaxRadius(0.03f);
 	generateSpawnData(globals::AXIS_LENGTH);
-
-	initObjects();
 }
 
 void Scenario3::onUnload()
