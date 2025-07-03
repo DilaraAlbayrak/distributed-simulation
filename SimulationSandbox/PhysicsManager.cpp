@@ -67,6 +67,7 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 	for (size_t i = startIndex; i < endIndex; ++i)
 	{
 		_physicsObjects[i]->Update(dt);
+		//_physicsObjects[i]->constrainToBounds();
 	}
 
 	for (size_t i = startIndex; i < endIndex; ++i)

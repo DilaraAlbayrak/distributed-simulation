@@ -111,6 +111,8 @@ public:
 	const DirectX::XMFLOAT3& getVelocity() const { return velocity; }
 	const DirectX::XMFLOAT3 getPosition() const;
 
+	void constrainToBounds();
+
 	const bool getFixed() const { return isFixed; }  
 	void setFixed(bool fixed) { isFixed = fixed; }  
 

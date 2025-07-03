@@ -79,14 +79,16 @@ bool Sphere::isCollidingWithPlane(const Plane& plane, DirectX::XMFLOAT3& outNorm
 
     float distance = XMVectorGetX(XMVector3Dot(planeToSphere, vPlaneNormal));
 
-    float absDistance = fabsf(distance);
+    //float absDistance = fabsf(distance);
 
-    if (absDistance <= _radius + EPSILON)
+    //if (absDistance <= _radius + EPSILON)
+    if (distance <= _radius + EPSILON)
     {
-        penetrationDepth = _radius - absDistance;
+        //penetrationDepth = _radius - absDistance;
+        penetrationDepth = _radius - distance;
 
-        if (distance < 0)
-            vPlaneNormal = XMVectorNegate(vPlaneNormal);
+        //if (distance < 0)
+        //    vPlaneNormal = XMVectorNegate(vPlaneNormal);
 
         XMStoreFloat3(&outNormal, vPlaneNormal);
         return true;
