@@ -18,6 +18,7 @@ public:
 	bool isCollidingWithSphere(const Sphere& sphere, DirectX::XMFLOAT3& outNormal, float& penetrationDepth) const;
 	bool isCollidingWithPlane(const Plane& plane, DirectX::XMFLOAT3& outNormal, float& penetrationDepth) const;
 	bool isCollidingWithCylinder(const Cylinder& cylinder, DirectX::XMFLOAT3& outNormal, float& penetrationDepth) const;
+	bool isCollidingWithCapsule(const Capsule& cylinder, DirectX::XMFLOAT3& outNormal, float& penetrationDepth) const;
 	bool isCollidingWithCube(const Cube& cube, DirectX::XMFLOAT3& outNormal, float& penetrationDepth) const;
 
 	float getRadius() const { return _radius; }

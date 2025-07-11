@@ -5,6 +5,7 @@
 #include "Plane.h"
 #include "Cylinder.h"
 #include "Cube.h"
+#include "Capsule.h"
 
 using namespace DirectX;
 
@@ -25,6 +26,10 @@ bool Sphere::isColliding(const Collider& other, DirectX::XMFLOAT3& outNormal, fl
     // Check if it's a Cube
     if (const Cube* cube = dynamic_cast<const Cube*>(&other))
         return isCollidingWithCube(*cube, outNormal, penetrationDepth);
+
+	// Check if it's a Capsule
+	if (const Capsule* capsule = dynamic_cast<const Capsule*>(&other))
+		return isCollidingWithCapsule(*capsule, outNormal, penetrationDepth);
 
     return false;
 }
@@ -102,52 +107,29 @@ bool Sphere::isCollidingWithPlane(const Plane& plane, DirectX::XMFLOAT3& outNorm
 
 bool Sphere::isCollidingWithCylinder(const Cylinder& cylinder, DirectX::XMFLOAT3& outNormal, float& penetrationDepth) const
 {
-    using namespace DirectX;
-
-    XMFLOAT3 sphereCenter = getPosition();
-    XMFLOAT3 cylinderCenter = cylinder.getPosition();
+    XMVECTOR vSphere = XMLoadFloat3(&getPosition());
+    XMVECTOR vCylinder = XMLoadFloat3(&cylinder.getPosition());
     XMFLOAT3 axisDir = cylinder.getAxis();
-	//XMFLOAT3 axisDir = { 0.0f, 1.0f, 0.0f }; // Assuming Y-axis for cylinder direction
-    float cylinderHalfHeight = cylinder.getHeight() *0.5f;
-    float cylinderRadius = cylinder.getRadius();
+    XMVECTOR vAxis = XMVector3Normalize(XMLoadFloat3(&axisDir));
+    float halfHeight = cylinder.getHeight() * 0.5f;
 
-    XMVECTOR vAxisDir = XMVector3Normalize(XMLoadFloat3(&axisDir));
-    XMVECTOR vCylinderCenter = XMLoadFloat3(&cylinderCenter);
-    XMVECTOR vSphereCenter = XMLoadFloat3(&sphereCenter);
+    XMVECTOR d = XMVectorSubtract(vSphere, vCylinder);
+    float projection = XMVectorGetX(XMVector3Dot(d, vAxis));
+    float clampedProjection = std::clamp(projection, -halfHeight, halfHeight);
 
-    // Start and end of cylinder axis
-    XMVECTOR start = XMVectorSubtract(vCylinderCenter, XMVectorScale(vAxisDir, cylinderHalfHeight));
-    XMVECTOR end = XMVectorAdd(vCylinderCenter, XMVectorScale(vAxisDir, cylinderHalfHeight));
+    XMVECTOR closestPoint = XMVectorAdd(vCylinder, XMVectorScale(vAxis, clampedProjection));
+    XMVECTOR diff = XMVectorSubtract(vSphere, closestPoint);
 
-    XMVECTOR axis = XMVectorSubtract(end, start);
-    XMVECTOR sphereToStart = XMVectorSubtract(vSphereCenter, start);
-
-    float axisLenSq = XMVectorGetX(XMVector3LengthSq(axis));
-    if (axisLenSq < 1e-6f) {
-        outNormal = { 0, 0, 0 };
-        penetrationDepth = 0.0f;
-        return false;
-    }
-
-    float t = XMVectorGetX(XMVector3Dot(sphereToStart, axis)) / axisLenSq;
-    t = std::clamp(t, 0.0f, 1.0f);
-
-    XMVECTOR closest = XMVectorAdd(start, XMVectorScale(axis, t));
-    XMVECTOR diff = XMVectorSubtract(vSphereCenter, closest);
     float distSq = XMVectorGetX(XMVector3LengthSq(diff));
-
-    float combinedRadius = getRadius() + cylinderRadius;
+    float combinedRadius = getRadius() + cylinder.getRadius();
     float combinedRadiusSq = combinedRadius * combinedRadius;
 
     if (distSq <= combinedRadiusSq + EPSILON) {
         float dist = sqrtf(distSq);
-
-        if (dist > 1e-5f) {
+        if (dist > 1e-5f)
             XMStoreFloat3(&outNormal, XMVectorScale(diff, 1.0f / dist));
-        }
-        else {
+        else
             outNormal = { 0.0f, 1.0f, 0.0f };
-        }
 
         penetrationDepth = combinedRadius - dist;
         return true;
@@ -155,6 +137,73 @@ bool Sphere::isCollidingWithCylinder(const Cylinder& cylinder, DirectX::XMFLOAT3
 
     outNormal = { 0, 0, 0 };
     penetrationDepth = 0.0f;
+    return false;
+}
+
+bool Sphere::isCollidingWithCapsule(const Capsule& capsule, DirectX::XMFLOAT3& outNormal, float& penetrationDepth) const
+{
+    // --- 1. Get properties of both objects ---
+    XMVECTOR sphereCenter = XMLoadFloat3(&this->getPosition());
+    float sphereRadius = this->getRadius();
+
+    XMVECTOR capsuleCenter = XMLoadFloat3(&capsule.getPosition());
+    XMFLOAT3 axisDirection = capsule.getAxis();
+    XMVECTOR capsuleAxis = XMLoadFloat3(&axisDirection);
+    float capsuleHalfHeight = capsule.getHeight() * 0.5f;
+    float capsuleRadius = capsule.getRadius();
+
+    // --- 2. Calculate the world-space endpoints of the capsule's line segment ---
+    XMVECTOR pointA = capsuleCenter - capsuleAxis * capsuleHalfHeight;
+    XMVECTOR pointB = capsuleCenter + capsuleAxis * capsuleHalfHeight;
+
+    // --- 3. Find the closest point on the line segment AB to the sphere's center ---
+    XMVECTOR segmentVector = pointB - pointA;        // The vector representing the segment.
+    XMVECTOR sphereToPointA = sphereCenter - pointA; // Vector from segment start to sphere.
+
+    // Project sphereToPointA onto the segment vector to find the parameter 't'.
+    // t = dot(sphereToPointA, segmentVector) / dot(segmentVector, segmentVector)
+    float segmentLengthSq = XMVectorGetX(XMVector3LengthSq(segmentVector));
+    float t = 0.0f;
+    if (segmentLengthSq > EPSILON) {
+        t = XMVectorGetX(XMVector3Dot(sphereToPointA, segmentVector)) / segmentLengthSq;
+    }
+
+    // Clamp t to the range [0, 1] to ensure the point is on the segment.
+    t = std::clamp(t, 0.0f, 1.0f);
+
+    // Calculate the closest point on the segment using the clamped t.
+    XMVECTOR closestPointOnSegment = pointA + segmentVector * t;
+
+    // --- 4. Perform a final sphere-to-point distance check ---
+    XMVECTOR diff = sphereCenter - closestPointOnSegment;
+    float distSq = XMVectorGetX(XMVector3LengthSq(diff));
+    float combinedRadius = sphereRadius + capsuleRadius;
+    float combinedRadiusSq = combinedRadius * combinedRadius;
+
+    if (distSq <= combinedRadiusSq)
+    {
+        float dist = sqrtf(distSq);
+        penetrationDepth = combinedRadius - dist;
+
+        if (dist > EPSILON) {
+            // The normal points from the capsule's closest point towards the sphere's centre.
+            XMStoreFloat3(&outNormal, diff / dist);
+        }
+        else {
+            // The sphere's centre is on the capsule's line segment.
+            // A good fallback normal is from the capsule's centre to the sphere's centre.
+            XMVECTOR centerToCenter = sphereCenter - capsuleCenter;
+            if (XMVectorGetX(XMVector3LengthSq(centerToCenter)) > EPSILON) {
+                XMStoreFloat3(&outNormal, XMVector3Normalize(centerToCenter));
+            }
+            else {
+                // The objects are at the exact same location. Provide an arbitrary normal.
+                outNormal = { 0.0f, 1.0f, 0.0f };
+            }
+        }
+        return true;
+    }
+
     return false;
 }
 

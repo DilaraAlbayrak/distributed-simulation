@@ -1,6 +1,6 @@
 #include "TestScenario2.h"
 #include <memory>
-#include "Cylinder.h"
+#include "Capsule.h"
 #include "Sphere.h"
 
 void TestScenario2::setupFixedObjects()
@@ -13,17 +13,17 @@ void TestScenario2::setupFixedObjects()
 	float z = 0.0f;
 	//float z = randomFloat(-axisLength, axisLength);
 
-	auto fixedCylinder = std::make_unique<PhysicsObject>(
-		std::make_unique<Cylinder>(
+	auto fixedCapsule = std::make_unique<PhysicsObject>(
+		std::make_unique<Capsule>(
 			DirectX::XMFLOAT3(x, y, z),
 			DirectX::XMFLOAT3(90.0f, 0.0f, 0.0f),
 			DirectX::XMFLOAT3(scale, scale, scale)), true);
-	fixedCylinder->LoadModel("cylinder.sjg");
-	ConstantBuffer cb = fixedCylinder->getConstantBuffer();
+	fixedCapsule->LoadModel("capsule.sjg");
+	ConstantBuffer cb = fixedCapsule->getConstantBuffer();
 	cb.LightColour = { 1-radius,1-radius,radius, 1.0f };
 	cb.DarkColour = cb.LightColour;
-	fixedCylinder->setConstantBuffer(cb);
-	addPhysicsObject(std::move(fixedCylinder));
+	fixedCapsule->setConstantBuffer(cb);
+	addPhysicsObject(std::move(fixedCapsule));
 
 	auto sphere = std::make_unique<PhysicsObject>(
 		std::make_unique<Sphere>(

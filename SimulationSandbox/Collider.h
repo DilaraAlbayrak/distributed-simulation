@@ -5,6 +5,7 @@ class Sphere;
 class Plane;
 class Cylinder;
 class Cube;	
+class Capsule;
 
 class Collider
 {
@@ -32,6 +33,7 @@ public:
 	const DirectX::XMFLOAT3& getRotation() const { return _rotation; } // Const version
 	DirectX::XMFLOAT3& getScale() { return _scale; } // Non-const version
 	const DirectX::XMFLOAT3& getScale() const { return _scale; } // Const version
+	DirectX::XMMATRIX getWorldMatrix() const;
 
 	void setPosition(DirectX::XMFLOAT3 position) { _position = position; }
 	void setRotation(DirectX::XMFLOAT3 rotation) { _rotation = rotation; }

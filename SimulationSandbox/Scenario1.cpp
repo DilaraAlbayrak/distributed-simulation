@@ -32,11 +32,11 @@ void Scenario1::setupFixedObjects()
 		addPhysicsObject(std::move(sphere));
 	};
 
-	//createFixedSphere(0.5f, -globals::AXIS_LENGTH, 0.5f, true);
-	//createFixedSphere(-globals::AXIS_LENGTH, 0.8f, 1.0f);
-	createFixedSphere(0.0f, 0.0f, -3.0f);
-	//createFixedSphere(globals::AXIS_LENGTH, 0.8f, -1.2f);
-	//createFixedSphere(-0.8f, 0.5f, -globals::AXIS_LENGTH);
+	//createFixedSphere(0.0f, 0.0f, -3.0f);
+	createFixedSphere(0.5f, -globals::AXIS_LENGTH, 0.5f, true);
+	createFixedSphere(-globals::AXIS_LENGTH, 0.8f, 1.0f);
+	createFixedSphere(globals::AXIS_LENGTH, 0.8f, -1.2f);
+	createFixedSphere(-0.8f, 0.5f, -globals::AXIS_LENGTH);
 }
 
 void Scenario1::onLoad()

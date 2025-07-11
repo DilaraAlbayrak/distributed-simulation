@@ -180,6 +180,7 @@
     </FxCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Capsule.h" />
     <ClInclude Include="Collider.h" />
     <ClInclude Include="Cube.h" />
     <ClInclude Include="Cylinder.h" />
@@ -205,6 +206,7 @@
     <ClInclude Include="TestScenario3.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Capsule.cpp" />
     <ClCompile Include="Collider.cpp" />
     <ClCompile Include="Cube.cpp" />
     <ClCompile Include="Cylinder.cpp" />

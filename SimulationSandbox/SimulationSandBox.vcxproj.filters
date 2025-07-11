@@ -99,6 +99,9 @@
     <ClCompile Include="NetworkManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Capsule.cpp">
+      <Filter>Physics</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Resource.h" />
@@ -167,6 +170,9 @@
     </ClInclude>
     <ClInclude Include="NetworkManager.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Capsule.h">
+      <Filter>Physics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

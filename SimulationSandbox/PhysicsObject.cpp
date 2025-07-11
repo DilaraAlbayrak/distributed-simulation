@@ -213,20 +213,36 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
         other.velocity.z -= impulse.z * invMassB;
     }
 
-    // --- 2. Stable Friction ---
+    // --- 2. Stable Friction (Corrected using Coulomb's Law) ---
     relativeVelocity = { velocity.x - other.velocity.x, velocity.y - other.velocity.y, velocity.z - other.velocity.z };
     XMVECTOR vRel = XMLoadFloat3(&relativeVelocity);
     XMVECTOR vNorm = XMLoadFloat3(&collisionNormal);
+    
+    // Find the tangential velocity component.
     XMVECTOR velTangent = vRel - vNorm * XMVector3Dot(vRel, vNorm);
+    float tangentLenSq = XMVectorGetX(XMVector3LengthSq(velTangent));
 
-    if (XMVectorGetX(XMVector3LengthSq(velTangent)) > 1e-6f) {
+    if (tangentLenSq > 1e-6f) {
         XMVECTOR tangentDirection = XMVector3Normalize(velTangent);
-        float frictionCoefficient = 0.3f; // You can tune this value
-        float jt = -XMVectorGetX(XMVector3Dot(vRel, tangentDirection)) / invMassSum;
-        XMVECTOR frictionImpulseVec = tangentDirection * jt * frictionCoefficient;
+
+        // Calculate the impulse needed to stop the tangential velocity.
+        float jtMagnitude = -XMVectorGetX(XMVector3Dot(vRel, tangentDirection));
+        jtMagnitude /= invMassSum;
+
+        // Use Coulomb's Law: Friction impulse magnitude cannot exceed the normal impulse magnitude * friction coefficient.
+        // For simplicity, we'll use a single static friction coefficient here.
+        float staticFrictionCoeff = 0.5f; // This can be tuned.
+        float maxFrictionImpulse = staticFrictionCoeff * impulseMagnitude;
+
+        // Clamp the friction impulse.
+        jtMagnitude = std::clamp(jtMagnitude, -maxFrictionImpulse, maxFrictionImpulse);
+        
+        // Calculate the final friction impulse vector.
+        XMVECTOR frictionImpulseVec = tangentDirection * jtMagnitude;
         XMFLOAT3 frictionImpulse;
         XMStoreFloat3(&frictionImpulse, frictionImpulseVec);
 
+        // Apply the corrected friction impulse.
         if (!isFixed) {
             velocity.x += frictionImpulse.x * invMassA;
             velocity.y += frictionImpulse.y * invMassA;
