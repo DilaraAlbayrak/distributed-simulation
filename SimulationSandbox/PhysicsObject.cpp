@@ -79,6 +79,7 @@ void PhysicsObject::moveMidpoint(float dt)
 PhysicsObject::PhysicsObject(std::unique_ptr<Collider> col, bool fixed, float objMass, Material mat)
     : _collider(std::move(col)), isFixed(fixed), mass(objMass), material(mat)
 {
+	setMass(objMass);
     inverseMass = (mass > 0.0f) ? (1.0f / mass) : 0.0f;
 
     if (_collider)
@@ -94,6 +95,32 @@ PhysicsObject::PhysicsObject(std::unique_ptr<Collider> col, bool fixed, float ob
     }
 
     integrationMethod = IntegrationMethod::SEMI_IMPLICIT_EULER;
+}
+
+void PhysicsObject::setMass(float newMass)
+{
+    mass = newMass;
+    inverseMass = (mass > 1e-6f) ? 1.0f / mass : 0.0f;
+
+    if (!isFixed && _collider)
+    {
+        if (auto sphere = dynamic_cast<Sphere*>(_collider.get()))
+        {
+            float radius = sphere->getRadius();
+            if (mass > 1e-6f && radius > 1e-6f)
+            {
+                // for sphere
+                float momentOfInertia = (2.0f / 5.0f) * mass * radius * radius;
+                inverseMomentOfInertia = 1.0f / momentOfInertia;
+            }
+            else
+            {
+                inverseMomentOfInertia = 0.0f;
+            }
+        }
+        else { inverseMomentOfInertia = 0.0f; } 
+    }
+    else { inverseMomentOfInertia = 0.0f; } 
 }
 
 void PhysicsObject::constrainToBounds()
@@ -171,6 +198,42 @@ void PhysicsObject::Update(float deltaTime)
 		moveMidpoint(deltaTime);
 	}
 
+    const float linearDamping = 0.998f;
+    const float angularDamping = 0.995f;
+
+    velocity.x *= linearDamping;
+    velocity.y *= linearDamping;
+    velocity.z *= linearDamping;
+
+    angularVelocity.x *= angularDamping;
+    angularVelocity.y *= angularDamping;
+    angularVelocity.z *= angularDamping;
+
+	// for slowest velocities, we set them to zero to prevent jittering and unnecessary calculations
+    const float sleepEpsilon = 0.01f;
+
+    float linearSpeedSq = velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z;
+    float angularSpeedSq = angularVelocity.x * angularVelocity.x + angularVelocity.y * angularVelocity.y + angularVelocity.z * angularVelocity.z;
+
+    if (linearSpeedSq < sleepEpsilon * sleepEpsilon && angularSpeedSq < sleepEpsilon * sleepEpsilon)
+    {
+        velocity = { 0.0f, 0.0f, 0.0f };
+        angularVelocity = { 0.0f, 0.0f, 0.0f };
+    }
+
+    if (inverseMomentOfInertia > 0.0f)
+    {
+        float deltaRoll = angularVelocity.x * deltaTime;
+        float deltaPitch = angularVelocity.y * deltaTime;
+        float deltaYaw = angularVelocity.z * deltaTime;
+
+        _collider->incrementRotation({
+            XMConvertToDegrees(deltaRoll),
+            XMConvertToDegrees(deltaPitch),
+            XMConvertToDegrees(deltaYaw)
+            });
+    }
+
     _constantBuffer.World = _collider->updateWorldMatrix();
 }
 
@@ -186,12 +249,12 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
 {
     if (!_collider || !other._collider || (isFixed && other.isFixed)) return;
 
-    // --- 1. Impulse-based response (Restitution) ---
     float invMassA = isFixed ? 0.0f : inverseMass;
     float invMassB = other.isFixed ? 0.0f : other.inverseMass;
     float invMassSum = invMassA + invMassB;
     if (invMassSum <= 1e-6f) return;
 
+    // --- 1. Restitution Impulse (Handles bounce) ---
     DirectX::XMFLOAT3 relativeVelocity = { velocity.x - other.velocity.x, velocity.y - other.velocity.y, velocity.z - other.velocity.z };
     float velocityAlongNormal = relativeVelocity.x * collisionNormal.x + relativeVelocity.y * collisionNormal.y + relativeVelocity.z * collisionNormal.z;
     if (velocityAlongNormal > 0.0f) return;
@@ -213,73 +276,73 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
         other.velocity.z -= impulse.z * invMassB;
     }
 
-    // --- 2. Stable Friction (Corrected using Coulomb's Law) ---
+    // --- 2. Friction Impulse ---
     relativeVelocity = { velocity.x - other.velocity.x, velocity.y - other.velocity.y, velocity.z - other.velocity.z };
-    XMVECTOR vRel = XMLoadFloat3(&relativeVelocity);
-    XMVECTOR vNorm = XMLoadFloat3(&collisionNormal);
-    
-    // Find the tangential velocity component.
-    XMVECTOR velTangent = vRel - vNorm * XMVector3Dot(vRel, vNorm);
-    float tangentLenSq = XMVectorGetX(XMVector3LengthSq(velTangent));
+    DirectX::XMVECTOR vRel = DirectX::XMLoadFloat3(&relativeVelocity);
+    DirectX::XMVECTOR vNorm = DirectX::XMLoadFloat3(&collisionNormal);
+    DirectX::XMVECTOR velTangent = vRel - vNorm * DirectX::XMVector3Dot(vRel, vNorm);
+    float tangentSpeedSq = DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(velTangent));
 
-    if (tangentLenSq > 1e-6f) {
-        XMVECTOR tangentDirection = XMVector3Normalize(velTangent);
-
-        // Calculate the impulse needed to stop the tangential velocity.
-        float jtMagnitude = -XMVectorGetX(XMVector3Dot(vRel, tangentDirection));
+    DirectX::XMVECTOR frictionImpulseVec = DirectX::XMVectorSet(0.f, 0.f, 0.f, 0.f);
+    if (tangentSpeedSq > 1e-6f) {
+        DirectX::XMVECTOR tangentDirection = DirectX::XMVector3Normalize(velTangent);
+        float jtMagnitude = -DirectX::XMVectorGetX(DirectX::XMVector3Dot(vRel, tangentDirection));
         jtMagnitude /= invMassSum;
 
-        // Use Coulomb's Law: Friction impulse magnitude cannot exceed the normal impulse magnitude * friction coefficient.
-        // For simplicity, we'll use a single static friction coefficient here.
-        float staticFrictionCoeff = 0.5f; // This can be tuned.
+        float staticFrictionCoeff = 0.5f;
         float maxFrictionImpulse = staticFrictionCoeff * impulseMagnitude;
-
-        // Clamp the friction impulse.
         jtMagnitude = std::clamp(jtMagnitude, -maxFrictionImpulse, maxFrictionImpulse);
-        
-        // Calculate the final friction impulse vector.
-        XMVECTOR frictionImpulseVec = tangentDirection * jtMagnitude;
-        XMFLOAT3 frictionImpulse;
-        XMStoreFloat3(&frictionImpulse, frictionImpulseVec);
 
-        // Apply the corrected friction impulse.
+        frictionImpulseVec = tangentDirection * jtMagnitude;
+
+        // Apply friction impulse to linear velocities
         if (!isFixed) {
-            velocity.x += frictionImpulse.x * invMassA;
-            velocity.y += frictionImpulse.y * invMassA;
-            velocity.z += frictionImpulse.z * invMassA;
+            velocity.x += DirectX::XMVectorGetX(frictionImpulseVec) * invMassA;
+            velocity.y += DirectX::XMVectorGetY(frictionImpulseVec) * invMassA;
+            velocity.z += DirectX::XMVectorGetZ(frictionImpulseVec) * invMassA;
         }
         if (!other.isFixed) {
-            other.velocity.x -= frictionImpulse.x * invMassB;
-            other.velocity.y -= frictionImpulse.y * invMassB;
-            other.velocity.z -= frictionImpulse.z * invMassB;
+            other.velocity.x -= DirectX::XMVectorGetX(frictionImpulseVec) * invMassB;
+            other.velocity.y -= DirectX::XMVectorGetY(frictionImpulseVec) * invMassB;
+            other.velocity.z -= DirectX::XMVectorGetZ(frictionImpulseVec) * invMassB;
         }
     }
 
-    // --- 3. Positional Correction (Reduced strength for stability) ---
-    const float percent = 0.2f; // Reduced to be gentle and prevent jitter
+    // --- 3. Torque from Friction ---
+    const float minSlidingSpeedForTorqueSq = 0.0025f;
+    if (tangentSpeedSq > minSlidingSpeedForTorqueSq)
+    {
+        if (!isFixed && inverseMomentOfInertia > 0.0f) {
+            if (auto sphereA = dynamic_cast<Sphere*>(_collider.get())) {
+                DirectX::XMVECTOR rA = -vNorm * sphereA->getRadius();
+                DirectX::XMVECTOR torqueA = DirectX::XMVector3Cross(rA, frictionImpulseVec);
+                angularVelocity.x += DirectX::XMVectorGetX(torqueA) * inverseMomentOfInertia;
+                angularVelocity.y += DirectX::XMVectorGetY(torqueA) * inverseMomentOfInertia;
+                angularVelocity.z += DirectX::XMVectorGetZ(torqueA) * inverseMomentOfInertia;
+            }
+        }
+        if (!other.isFixed && other.inverseMomentOfInertia > 0.0f) {
+            if (auto sphereB = dynamic_cast<Sphere*>(other._collider.get())) {
+                DirectX::XMVECTOR rB = vNorm * sphereB->getRadius();
+                DirectX::XMVECTOR torqueB = DirectX::XMVector3Cross(rB, -frictionImpulseVec);
+                other.angularVelocity.x += DirectX::XMVectorGetX(torqueB) * other.inverseMomentOfInertia;
+                other.angularVelocity.y += DirectX::XMVectorGetY(torqueB) * other.inverseMomentOfInertia;
+                other.angularVelocity.z += DirectX::XMVectorGetZ(torqueB) * other.inverseMomentOfInertia;
+            }
+        }
+    }
+
+    // --- 4. Positional Correction ---
+    const float percent = 0.2f;
     const float slop = 0.01f;
     float correctionMag = (std::max(penetrationDepth - slop, 0.0f) / invMassSum) * percent;
     DirectX::XMFLOAT3 correction = { correctionMag * collisionNormal.x, correctionMag * collisionNormal.y, correctionMag * collisionNormal.z };
 
-    if (!isFixed && _collider) {
+    if (!isFixed) {
         _collider->incrementPosition({ correction.x * invMassA, correction.y * invMassA, correction.z * invMassA });
     }
-    if (!other.isFixed && other._collider) {
+    if (!other.isFixed) {
         other._collider->incrementPosition({ -correction.x * invMassB, -correction.y * invMassB, -correction.z * invMassB });
-    }
-
-    // --- 4. Final, Simplified Sleep Logic ---
-    const float sleepEpsilonSq = 0.02f;
-    // An object sleeps if it's on a flat surface (like the floor) and its velocity is very low.
-    if (fabsf(collisionNormal.y) > 0.95f) { // Check for horizontal surface
-        XMVECTOR vA = XMLoadFloat3(&velocity);
-        XMVECTOR vB = XMLoadFloat3(&other.velocity);
-
-        // Check if the combined energy is very low
-        if ((XMVectorGetX(XMVector3LengthSq(vA)) + XMVectorGetX(XMVector3LengthSq(vB))) < sleepEpsilonSq) {
-            if (!isFixed) setVelocity({ 0.0f, 0.0f, 0.0f });
-            if (!other.isFixed) other.setVelocity({ 0.0f, 0.0f, 0.0f });
-        }
     }
 }
 

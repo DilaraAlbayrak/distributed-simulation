@@ -53,6 +53,7 @@ private:
 	bool isFixed = false;  
 	DirectX::XMFLOAT3 velocity = { 0.0f, 0.0f, 0.0f };  
 	DirectX::XMFLOAT3 angularVelocity = { 0.0f, 0.0f, 0.0f };  
+	float inverseMomentOfInertia = 0.0f;
 	DirectX::XMFLOAT3 acceleration = { 0.0f, 0.0f, 0.0f };  
 	DirectX::XMFLOAT3 previousPosition = { 0.0f, 0.0f, 0.0f };
 	//DirectX::XMFLOAT3 gravitationalForce; // Gravity vector  
@@ -120,7 +121,7 @@ public:
 	void setAngularVelocity(const DirectX::XMFLOAT3& newAngVel) { angularVelocity = newAngVel; }  
 	void setConstantBuffer(const ConstantBuffer& cb) { _constantBuffer = cb; }  
 	void setIntegrationMethod(int method) { integrationMethod = static_cast<IntegrationMethod>(method); }  
-	void setMass(float newMass) { mass = newMass; inverseMass = (mass != 0.0f) ? 1.0f / mass : 0.0f; }  
+	void setMass(float newMass); // { mass = newMass; inverseMass = (mass != 0.0f) ? 1.0f / mass : 0.0f; }
 
 	// threading
 	std::mutex& getCollisionMutex() const { return collisionMutex; }

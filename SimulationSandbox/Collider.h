@@ -11,7 +11,7 @@ class Collider
 {
 private:
 	DirectX::XMFLOAT3 _position = { 0.0f, 0.0f, 0.0f };
-	DirectX::XMFLOAT3 _rotation = { 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 _rotation = { 0.0f, 0.0f, 1.0f };
 	DirectX::XMFLOAT3 _scale = { 1.0f, 1.0f, 1.0f };
 public:
 	Collider(DirectX::XMFLOAT3 position = { 0.0f, 0.0f, 0.0f }, DirectX::XMFLOAT3 rotation = { 0.0f, 0.0f, 0.0f }, DirectX::XMFLOAT3 scale = { 1.0f, 1.0f, 1.0f }) :
