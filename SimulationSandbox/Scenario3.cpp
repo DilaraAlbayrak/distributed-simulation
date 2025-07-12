@@ -15,7 +15,7 @@ void Scenario3::onLoad()
 
 	spawnRoom();
 
-	setNumMovingSpheres(100000);
+	setNumMovingSpheres(5000);
 	setMinRadius(0.01f);
 	setMaxRadius(0.03f);
 	generateSpawnData(globals::AXIS_LENGTH);

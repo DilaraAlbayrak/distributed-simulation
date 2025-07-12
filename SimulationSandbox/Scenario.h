@@ -35,7 +35,7 @@ private:
 	CComPtr<ID3DBlob> pixelShaderBlob;
 
 	// --- Scene Setup & Spawning Logic (Responsibility of Scenario) ---
-	int integrationMethod = 0; // 
+	//static int integrationMethod; // 
 	int numMovingSpheres = 25;
 	float minRadius = 0.01f;
 	float maxRadius = 0.01f;
@@ -52,7 +52,9 @@ private:
 	HRESULT initRenderingResources(PhysicsObject* obj);
 
 protected:
-	Scenario(const CComPtr <ID3D11Device>& pDevice, const CComPtr <ID3D11DeviceContext>& pContext) : device(pDevice), context(pContext) {}
+	Scenario(const CComPtr <ID3D11Device>& pDevice, const CComPtr <ID3D11DeviceContext>& pContext) : device(pDevice), context(pContext)
+	{
+	}
 
 	void initObjects(const std::wstring& shaderFile = L"Simulation.fx");
 	void unloadScenario();

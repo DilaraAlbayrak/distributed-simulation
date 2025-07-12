@@ -11,7 +11,7 @@ void TestScenario3::setupFixedObjects()
 	//float x = randomFloat(-axisLength, axisLength);
 	float x = 0.0f;
 	float y = -0.5f;
-	float z = 1.0f;
+	float z = 0.0f;
 	//float z = randomFloat(-axisLength, axisLength);
 
 	auto fixedCapsule = std::make_unique<PhysicsObject>(

@@ -94,7 +94,7 @@ PhysicsObject::PhysicsObject(std::unique_ptr<Collider> col, bool fixed, float ob
         _constantBuffer.World = DirectX::XMMatrixIdentity();
     }
 
-    integrationMethod = IntegrationMethod::SEMI_IMPLICIT_EULER;
+    // integrationMethod = IntegrationMethod::SEMI_IMPLICIT_EULER;
 }
 
 void PhysicsObject::setMass(float newMass)
@@ -184,6 +184,10 @@ void PhysicsObject::Update(float deltaTime)
     acceleration = {globals::gravity.x * inverseMass,
                     globals::gravity.y * inverseMass,
                     globals::gravity.z * inverseMass };
+
+	int currentMethod = globals::integrationMethod.load();
+
+	integrationMethod = static_cast<IntegrationMethod>(currentMethod);
 
     if (integrationMethod == IntegrationMethod::SEMI_IMPLICIT_EULER)
     {

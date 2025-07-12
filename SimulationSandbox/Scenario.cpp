@@ -11,16 +11,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-//======================================================================================
-// CORE LOGIC & RESOURCE MANAGEMENT
-//======================================================================================
-
-/**
- * @brief Initializes all necessary GPU resources for a single PhysicsObject.
- * This function uses the correct implementation you provided.
- * @param obj A raw pointer to the object whose model data will be used.
- * @return S_OK on success, or an HRESULT error code on failure.
- */
 HRESULT Scenario::initRenderingResources(PhysicsObject* obj)
 {
 	if (!device || !context) {
@@ -78,11 +68,6 @@ HRESULT Scenario::initRenderingResources(PhysicsObject* obj)
 	return S_OK;
 }
 
-/**
- * @brief Loads the vertex and pixel shaders for the scenario.
- * This implementation needs to be corrected to use the singleton properly.
- * @param shaderFile The path to the compiled shader object (.cso) or shader source (.fx).
- */
 void Scenario::initObjects(const std::wstring& shaderFile)
 {
 	HRESULT hr = ShaderManager::getInstance(device)->compileShaderFromFile(shaderFile.c_str(), "VS", "vs_5_0", &vertexShaderBlob);
@@ -97,17 +82,17 @@ void Scenario::initObjects(const std::wstring& shaderFile)
 
 void Scenario::unloadScenario()
 {
-	// 1. Clear local rendering resources owned by this Scenario instance.
+	// Clear local rendering resources owned by this Scenario instance.
 	vertexBuffers.clear();
 	indexBuffers.clear();
 	inputLayouts.clear();
 	constantBuffers.clear();
 	indexCounts.clear();
 
-	// 2. Clear all physics objects from the central PhysicsManager.
+	// Clear all physics objects from the central PhysicsManager.
 	PhysicsManager::getInstance().clearObjects();
 
-	// 3. Clear spawn data and any pending requests to ensure a clean state.
+	// Clear spawn data and any pending requests to ensure a clean state.
 	spawnData.clear();
 	spawnIndex = 0;
 	{
@@ -116,11 +101,6 @@ void Scenario::unloadScenario()
 	}
 }
 
-/**
- * @brief Private helper to finalize object creation. It creates rendering resources
- * and then transfers ownership of the PhysicsObject to the PhysicsManager.
- * @param obj A unique_ptr to the newly created PhysicsObject.
- */
 void Scenario::addPhysicsObject(std::unique_ptr<PhysicsObject> obj)
 {
 	if (!obj) return;
@@ -136,14 +116,8 @@ void Scenario::addPhysicsObject(std::unique_ptr<PhysicsObject> obj)
 	PhysicsManager::getInstance().addObject(std::move(obj));
 }
 
-//======================================================================================
-// OBJECT CREATION & SPAWNING
-//======================================================================================
-
-/**
- * @brief Queues a request to spawn a new sphere. This function is lightweight and thread-safe.
- * It gets data from the pre-calculated spawn list.
- */
+// Queues a request to spawn a new sphere
+// It gets data from the pre-calculated spawn list
 void Scenario::spawnMovingSphere()
 {
 	// Get the pre-calculated spawn data
@@ -163,10 +137,7 @@ void Scenario::spawnMovingSphere()
 	_pendingSpawns.push_back(request);
 }
 
-/**
- * @brief Processes all queued spawn requests. This must be called on the main/render thread.
- * It creates the actual PhysicsObject, its GPU resources, and adds it to the simulation.
- */
+// Processes all queued spawn requests. This must be called on the main/render thread
 void Scenario::processPendingSpawns()
 {
 	// Quickly copy requests and clear the queue to minimize lock time.
@@ -194,17 +165,13 @@ void Scenario::processPendingSpawns()
 			false, 1.0f, Material::MAT1
 		);
 		sphere->LoadModel("sphere.sjg");
-		sphere->setIntegrationMethod(integrationMethod);
+		//sphere->setIntegrationMethod(integrationMethod);
 
 		// This private helper creates resources and passes ownership to PhysicsManager
 		addPhysicsObject(std::move(sphere));
 	}
 }
 
-/**
- * @brief Creates the 6 planes that form the boundary of the simulation room.
- * This uses the corrected `addPhysicsObject` flow internally.
- */
 void Scenario::spawnRoom()
 {
 	auto createWallPlane = [&](const DirectX::XMFLOAT3& position,
@@ -214,7 +181,7 @@ void Scenario::spawnRoom()
 		{
 			auto wall = std::make_unique<PhysicsObject>(
 				std::make_unique<Plane>(position, rotation, DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f), normal),
-				true, 150.0f, Material::MAT4
+				true, 1.0f, Material::MAT4
 			);
 
 			wall->LoadModel("plane.sjg");
@@ -273,14 +240,6 @@ void Scenario::spawnRoom()
 
 }
 
-//======================================================================================
-// RENDERING & FRAME LOGIC
-//======================================================================================
-
-/**
- * @brief Renders all objects in the scene.
- * This function now gets the list of objects directly from the PhysicsManager in a thread-safe manner.
- */
 void Scenario::renderObjects()
 {
 	if (!vertexShader || !pixelShader || !context) return;
@@ -324,17 +283,10 @@ void Scenario::renderObjects()
 		}); // End of lambda
 }
 
-/**
- * @brief Logic to be executed on the main thread every frame.
- * @param dt Delta time for frame-rate independent logic.
- */
-void Scenario::onFrameUpdate(float dt) {
-	// This is a good place for logic that must run on the main thread.
-}
 
-//======================================================================================
-// HELPERS & GUI
-//======================================================================================
+void Scenario::onFrameUpdate(float dt) {
+	
+}
 
 std::vector<std::tuple<float, float, float>> Scenario::generateUniform2DPositions(int n, float areaHalfSize, float minRadius, float maxRadius)
 {
@@ -373,11 +325,24 @@ void Scenario::applySharedGUI()
 {
 	ImGui::Begin("Scenario Controls");
 	ImGui::PushItemWidth(150);
-	if (ImGui::RadioButton("Semi-Implicit Euler", &integrationMethod, 0)) {}
+
+	int currentMethod = globals::integrationMethod.load();
+
+	if (ImGui::RadioButton("Semi-Implicit Euler", &currentMethod, 0))
+	{
+		globals::integrationMethod = currentMethod;
+	}
 	ImGui::SameLine();
-	if (ImGui::RadioButton("RK4", &integrationMethod, 1)) {}
+	if (ImGui::RadioButton("RK4", &currentMethod, 1))
+	{
+		globals::integrationMethod = currentMethod;
+	}
 	ImGui::SameLine();
-	if (ImGui::RadioButton("Midpoint", &integrationMethod, 1)) {}
+	if (ImGui::RadioButton("Midpoint", &currentMethod, 2)) 
+	{
+		globals::integrationMethod = currentMethod;
+	}
+
 	ImGui::PopItemWidth();
 	ImGui::End();
 }

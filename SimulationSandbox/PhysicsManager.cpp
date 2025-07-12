@@ -37,64 +37,65 @@ void PhysicsManager::clearObjects()
 	_physicsObjects.clear();
 }
 
-/**
- * @brief Provides safe, read-only access to the physics objects.
- * It acquires a shared lock and then invokes the provided 'accessor' function,
- * passing a span of the objects. The lock is released automatically when this function returns.
- * @param accessor A function (usually a lambda) that takes a span of objects and performs an action (e.g., rendering).
- */
+// read-only access to the physics objects
 void PhysicsManager::accessPhysicsObjects(const std::function<void(std::span<const std::shared_ptr<PhysicsObject>>)>& accessor) const
 {
 	std::shared_lock lock(_objectsMutex);
 	accessor(std::span<const std::shared_ptr<PhysicsObject>>(_physicsObjects));
 }
 
-
-// --- Simulation Loop (No changes needed here from last time) ---
 void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 {
-	// Get object count once
-	_objectsMutex.lock_shared();
-	const size_t totalObjects = _physicsObjects.size();
-	_objectsMutex.unlock_shared();
+	// Use the safe accessor to work with the objects.
+	// This ensures the list is not modified while we are using it.
+	accessPhysicsObjects([&](std::span<const std::shared_ptr<PhysicsObject>> objects) {
 
-	if (totalObjects == 0) return;
+		const size_t totalObjects = objects.size();
+		if (totalObjects == 0) return;
 
-	const size_t objectsPerThread = (totalObjects + numThreads - 1) / numThreads;
-	const size_t startIndex = threadIndex * objectsPerThread;
-	const size_t endIndex = std::min(startIndex + objectsPerThread, totalObjects);
+		// Calculate the range of objects this thread is responsible for.
+		const size_t objectsPerThread = (totalObjects + numThreads - 1) / numThreads;
+		const size_t startIndex = threadIndex * objectsPerThread;
+		const size_t endIndex = std::min(startIndex + objectsPerThread, totalObjects);
 
-	for (size_t i = startIndex; i < endIndex; ++i)
-	{
-		_physicsObjects[i]->Update(dt);
-		//_physicsObjects[i]->constrainToBounds();
-	}
-
-	for (size_t i = startIndex; i < endIndex; ++i)
-	{
-		for (size_t j = i + 1; j < totalObjects; ++j)
+		// Update positions
+		for (size_t i = startIndex; i < endIndex; ++i)
 		{
-			auto& objA = _physicsObjects[i];
-			auto& objB = _physicsObjects[j];
+			// The objects span is const, but the PhysicsObject itself is not.
+			// We can call non-const methods on it.
+			objects[i]->Update(dt);
+		}
 
-			if (objA->getFixed() && objB->getFixed()) continue;
-
-			DirectX::XMFLOAT3 normal;
-			float penetration = 0.0f;
-			if (objA->checkCollision(*objB, normal, penetration))
+		// Check for collisions
+		for (size_t i = startIndex; i < endIndex; ++i)
+		{
+			// We check collisions against all subsequent objects, even those
+			// managed by other threads, to ensure all pairs are checked once.
+			for (size_t j = i + 1; j < totalObjects; ++j)
 			{
-				std::mutex* p_m1 = &objA->getCollisionMutex();
-				std::mutex* p_m2 = &objB->getCollisionMutex();
-				if (p_m1 > p_m2) std::swap(p_m1, p_m2);
+				auto& objA = objects[i];
+				auto& objB = objects[j];
 
-				std::scoped_lock lock(*p_m1, *p_m2);
-				objA->resolveCollision(*objB, normal, penetration);
+				// This check is now safe because we are guaranteed that
+				// objA and objB are valid pointers inside the locked span.
+				if (objA->getFixed() && objB->getFixed()) continue;
+
+				DirectX::XMFLOAT3 normal;
+				float penetration = 0.0f;
+				if (objA->checkCollision(*objB, normal, penetration))
+				{
+					std::mutex* p_m1 = &objA->getCollisionMutex();
+					std::mutex* p_m2 = &objB->getCollisionMutex();
+					if (p_m1 > p_m2) std::swap(p_m1, p_m2);
+
+					std::scoped_lock lock(*p_m1, *p_m2);
+					objA->resolveCollision(*objB, normal, penetration);
+				}
 			}
 		}
-	}
+		}); 
 }
 
-// --- Thread Management (No changes needed here from last time) ---
 void PhysicsManager::startThreads(int numThreads, float dt)
 {
 	if (_running) return;

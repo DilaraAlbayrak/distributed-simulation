@@ -19,7 +19,7 @@ void Scenario1::setupFixedObjects()
 				DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
 				DirectX::XMFLOAT3(scale, scale, scale)),
 			true, // fixed
-			50.0f, // mass
+			1.0f, // mass
 			Material::MAT2 // material
 		);
 		sphere->LoadModel("sphere.sjg");

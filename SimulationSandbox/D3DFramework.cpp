@@ -394,7 +394,7 @@ void D3DFramework::renderImGui() {
 		ImGui::PopItemWidth();
 		ImGui::End();
 
-		//_scenario->ImGuiMainMenu();
+		_scenario->ImGuiMainMenu();
 	}
 	else
 	{
