@@ -186,6 +186,7 @@
     <ClInclude Include="Cylinder.h" />
     <ClInclude Include="D3DFramework.h" />
     <ClInclude Include="globals.h" />
+    <ClInclude Include="Grid.h" />
     <ClInclude Include="NetworkManager.h" />
     <ClInclude Include="NotImplementedException.h" />
     <ClInclude Include="PhysicsManager.h" />
@@ -212,6 +213,7 @@
     <ClCompile Include="Cylinder.cpp" />
     <ClCompile Include="D3DFramework.cpp" />
     <ClCompile Include="globals.cpp" />
+    <ClCompile Include="Grid.cpp" />
     <ClCompile Include="ImGui\backends\imgui_impl_dx11.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>

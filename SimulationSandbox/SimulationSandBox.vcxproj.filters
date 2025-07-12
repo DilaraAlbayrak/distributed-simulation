@@ -102,6 +102,9 @@
     <ClCompile Include="Capsule.cpp">
       <Filter>Physics</Filter>
     </ClCompile>
+    <ClCompile Include="Grid.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Resource.h" />
@@ -173,6 +176,9 @@
     </ClInclude>
     <ClInclude Include="Capsule.h">
       <Filter>Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Grid.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
