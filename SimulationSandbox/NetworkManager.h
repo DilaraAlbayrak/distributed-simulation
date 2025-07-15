@@ -42,4 +42,5 @@ public:
     void stopNetworking();
 
     void sendObjectUpdate(int objectId, const DirectX::XMFLOAT3& position);
+	void sendPeerAnnounce();
 };

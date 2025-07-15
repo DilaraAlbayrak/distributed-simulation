@@ -165,7 +165,7 @@
       <PreprocessorDefinitions>NDEBUG;NOMINMAX;_WINDOWS;_AMD64_;_RELEASE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)\ImGui;$(ProjectDir)ImGui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\flatbuffers\include;$(ProjectDir)\ImGui;$(ProjectDir)ImGui\backends;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -188,6 +188,7 @@
     <ClInclude Include="globals.h" />
     <ClInclude Include="Grid.h" />
     <ClInclude Include="NetworkManager.h" />
+    <ClInclude Include="network_messages_generated.h" />
     <ClInclude Include="NotImplementedException.h" />
     <ClInclude Include="PhysicsManager.h" />
     <ClInclude Include="PhysicsObject.h" />

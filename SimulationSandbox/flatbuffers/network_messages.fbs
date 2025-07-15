@@ -1,0 +1,42 @@
+// network_messages.fbs
+namespace NetworkSim;
+
+table Vec3 {
+  x: float;
+  y: float;
+  z: float;
+}
+
+table ObjectUpdate {
+  objectId: int;
+  position: Vec3;
+  velocity: Vec3;
+  owner: int;
+}
+
+table GlobalState {
+  timestep: float;
+  gravityOn: bool;
+  reverseGravity: bool;
+  integrationMethod: int;
+}
+
+table PeerAnnounce {
+  peerId: int;
+  colour: int;
+  name: string;
+  port: int;
+}
+
+union MessageData {
+  ObjectUpdate,
+  GlobalState,
+  PeerAnnounce
+}
+
+table Message {
+  timestamp: ulong;
+  data: MessageData;
+}
+
+root_type Message;

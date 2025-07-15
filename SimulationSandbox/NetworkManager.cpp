@@ -1,6 +1,8 @@
-// NetworkManager.cpp
 #include "NetworkManager.h"
+#include "network_messages_generated.h"
 #include <iostream>
+
+using namespace NetworkSim;
 
 std::unique_ptr<NetworkManager> NetworkManager::_instance = nullptr;
 
@@ -33,8 +35,18 @@ void NetworkManager::setupSocket() {
         exit(EXIT_FAILURE);
     }
 
-    u_long mode = 1; // Non-blocking mode
+    // Enable non-blocking mode
+    u_long mode = 1;
     ioctlsocket(_socket, FIONBIO, &mode);
+
+    // Enable broadcast capability
+    int broadcastEnable = 1;
+    if (setsockopt(_socket, SOL_SOCKET, SO_BROADCAST, (char*)&broadcastEnable, sizeof(broadcastEnable)) < 0) {
+        std::cerr << "Failed to enable broadcast." << std::endl;
+        closesocket(_socket);
+        WSACleanup();
+        exit(EXIT_FAILURE);
+    }
 
     _selfAddr.sin_family = AF_INET;
     _selfAddr.sin_port = htons(_port);
@@ -61,6 +73,9 @@ void NetworkManager::startNetworking() {
 
         networkLoop();
         });
+
+    // Optional: Immediately announce self to network
+    sendPeerAnnounce();
 }
 
 void NetworkManager::stopNetworking() {
@@ -81,21 +96,73 @@ void NetworkManager::networkLoop() {
         int bytesReceived = recvfrom(_socket, buffer, sizeof(buffer), 0, (sockaddr*)&senderAddr, &senderLen);
         if (bytesReceived > 0) {
             std::lock_guard<std::mutex> lock(_recvMutex);
-            // Process buffer (Flatbuffers decode will go here later)
+
+            const Message* message = GetMessage(buffer);
+            switch (message->data_type()) {
+            case MessageData_ObjectUpdate: {
+                const ObjectUpdate* update = message->data_as_ObjectUpdate();
+                if (update) {
+                    std::cout << "Object " << update->objectId() << " at ("
+                        << update->position()->x() << ", "
+                        << update->position()->y() << ", "
+                        << update->position()->z() << ")\n";
+                }
+                break;
+            }
+            case MessageData_PeerAnnounce: {
+                const PeerAnnounce* peer = message->data_as_PeerAnnounce();
+                if (peer) {
+                    std::cout << "Peer Announce: " << peer->name()->c_str()
+                        << " (ID=" << peer->peerId() << ", Colour=" << peer->colour() << ", Port=" << peer->port() << ")\n";
+                }
+                break;
+            }
+            default:
+                break;
+            }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 
 void NetworkManager::sendObjectUpdate(int objectId, const DirectX::XMFLOAT3& position) {
-    // Placeholder: Send raw struct as byte stream (to be replaced with Flatbuffers)
-    char buffer[16];
-    memcpy(buffer, &objectId, sizeof(int));
-    memcpy(buffer + 4, &position, sizeof(DirectX::XMFLOAT3));
+    flatbuffers::FlatBufferBuilder builder;
+
+    auto pos = CreateVec3(builder, position.x, position.y, position.z);
+    auto vel = CreateVec3(builder, 0.0f, 0.0f, 0.0f);
+
+    int ownerId = 0; // TODO: determine actual peer owner ID
+    auto objUpdate = CreateObjectUpdate(builder, objectId, pos, vel, ownerId);
+    auto msg = CreateMessage(builder, static_cast<uint64_t>(GetTickCount64()),
+        MessageData_ObjectUpdate, objUpdate.Union());
+    builder.Finish(msg);
 
     _peerAddr.sin_family = AF_INET;
     _peerAddr.sin_port = htons(_port);
-    inet_pton(AF_INET, "127.0.0.1", &_peerAddr.sin_addr); // Replace with config-based IP
+    inet_pton(AF_INET, "127.0.0.1", &_peerAddr.sin_addr);
 
-    sendto(_socket, buffer, sizeof(buffer), 0, (sockaddr*)&_peerAddr, sizeof(_peerAddr));
+    sendto(_socket, reinterpret_cast<const char*>(builder.GetBufferPointer()),
+        builder.GetSize(), 0, (sockaddr*)&_peerAddr, sizeof(_peerAddr));
+}
+
+void NetworkManager::sendPeerAnnounce() {
+    flatbuffers::FlatBufferBuilder builder;
+
+    int peerId = 1; // example ID
+    int colour = 0; // example colour code (e.g., red)
+    auto name = builder.CreateString("PeerOne");
+    int port = _port;
+
+    auto announce = CreatePeerAnnounce(builder, peerId, colour, name, port);
+    auto msg = CreateMessage(builder, static_cast<uint64_t>(GetTickCount64()),
+        MessageData_PeerAnnounce, announce.Union());
+    builder.Finish(msg);
+
+    sockaddr_in broadcastAddr{};
+    broadcastAddr.sin_family = AF_INET;
+    broadcastAddr.sin_port = htons(_port);
+    broadcastAddr.sin_addr.s_addr = INADDR_BROADCAST;
+
+    sendto(_socket, reinterpret_cast<const char*>(builder.GetBufferPointer()),
+        builder.GetSize(), 0, (sockaddr*)&broadcastAddr, sizeof(broadcastAddr));
 }
