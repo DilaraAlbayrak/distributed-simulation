@@ -26,7 +26,7 @@ void Scenario2::setupFixedObjects()
 				Material::MAT2 // material
 			);
 
-			capsule->LoadModel("capsule.sjg");
+			capsule->LoadModel("shapes/capsule.sjg");
 
 			ConstantBuffer cb = capsule->getConstantBuffer();
 			cb.LightColour = { abs(1.0f - radius/3.0f), abs(1.0f - radius / 2.0f), abs(1.0f - radius / 3.0f), 1.0f};

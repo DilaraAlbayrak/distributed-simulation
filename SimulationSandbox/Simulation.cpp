@@ -41,12 +41,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ LPWSTR, _
 				unsigned int totalCores = std::thread::hardware_concurrency();
 				unsigned int simThreadCount = (totalCores > 3) ? totalCores - 3 : 1;
 				physicsManager.startThreads(simThreadCount, 0.008f);
+				networkManager.startNetworking();
 
 				threadingEnabled = true;
 			}
 			else if (threadingEnabled && !render.isScenarioReady())
 			{
 				physicsManager.stopThreads();
+				networkManager.stopNetworking();
 				threadingEnabled = false;
 			}
 		}
@@ -54,6 +56,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ LPWSTR, _
 	if (threadingEnabled)
 	{
 		physicsManager.stopThreads();
+		networkManager.stopNetworking();
 	}
 
 	return static_cast<int>(msg.wParam);

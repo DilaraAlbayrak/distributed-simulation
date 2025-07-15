@@ -164,7 +164,7 @@ void Scenario::processPendingSpawns()
 			),
 			false, 1.0f, Material::MAT1
 		);
-		sphere->LoadModel("sphere.sjg");
+		sphere->LoadModel("shapes/sphere.sjg");
 		//sphere->setIntegrationMethod(integrationMethod);
 
 		// This private helper creates resources and passes ownership to PhysicsManager
@@ -184,7 +184,7 @@ void Scenario::spawnRoom()
 				true, 1.0f, Material::MAT4
 			);
 
-			wall->LoadModel("plane.sjg");
+			wall->LoadModel("shapes/plane.sjg");
 
 			ConstantBuffer cb = wall->getConstantBuffer();
 			cb.LightColour = colour;

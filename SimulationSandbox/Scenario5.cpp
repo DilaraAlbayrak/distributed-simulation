@@ -16,7 +16,7 @@ void Scenario5::setupFixedObjects()
 			Material::MAT2 // material
 		);
 
-		cube->LoadModel("cube.sjg");
+		cube->LoadModel("shapes/cube.sjg");
 
 		ConstantBuffer cb = cube->getConstantBuffer();
 		cb.LightColour = { scale.x * 0.3f, scale.y * 0.3f, scale.z * 0.4f, 1.0f };

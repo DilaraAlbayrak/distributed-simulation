@@ -5,7 +5,7 @@
 #include <Windows.h>
 
 // --- Singleton and Constructor/Destructor ---
-std::unique_ptr<PhysicsManager> PhysicsManager::_instance;
+std::unique_ptr<PhysicsManager> PhysicsManager::_instance = nullptr;
 
 PhysicsManager& PhysicsManager::getInstance()
 {
@@ -93,7 +93,7 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 				}
 			}
 		}
-		}); 
+		});
 }
 
 void PhysicsManager::startThreads(int numThreads, float dt)

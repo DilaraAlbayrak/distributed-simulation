@@ -18,7 +18,7 @@ void TestScenario2::setupFixedObjects()
 			DirectX::XMFLOAT3(x, y, z),
 			DirectX::XMFLOAT3(90.0f, 0.0f, 0.0f),
 			DirectX::XMFLOAT3(scale, scale, scale)), true);
-	fixedCapsule->LoadModel("capsule.sjg");
+	fixedCapsule->LoadModel("shapes/capsule.sjg");
 	ConstantBuffer cb = fixedCapsule->getConstantBuffer();
 	cb.LightColour = { 1-radius,1-radius,radius, 1.0f };
 	cb.DarkColour = cb.LightColour;
@@ -30,7 +30,7 @@ void TestScenario2::setupFixedObjects()
 			DirectX::XMFLOAT3(x + 0.2f, 2.5f, z),
 			DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
 			DirectX::XMFLOAT3(0.2f, 0.2f, 0.2f)), false);
-	sphere->LoadModel("sphere.sjg");
+	sphere->LoadModel("shapes/sphere.sjg");
 	addPhysicsObject(std::move(sphere));
 }
 

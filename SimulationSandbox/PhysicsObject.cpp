@@ -227,9 +227,9 @@ void PhysicsObject::Update(float deltaTime)
 
     if (inverseMomentOfInertia > 0.0f)
     {
-        float deltaRoll = angularVelocity.x * deltaTime;
-        float deltaPitch = angularVelocity.y * deltaTime;
-        float deltaYaw = angularVelocity.z * deltaTime;
+        float deltaRoll = angularVelocity.x * deltaTime * 0.1f;
+        float deltaPitch = angularVelocity.y * deltaTime * 0.1f;
+        float deltaYaw = angularVelocity.z * deltaTime * 0.1f;
 
         _collider->incrementRotation({
             XMConvertToDegrees(deltaRoll),

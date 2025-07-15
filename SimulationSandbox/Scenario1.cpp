@@ -22,7 +22,7 @@ void Scenario1::setupFixedObjects()
 			1.0f, // mass
 			Material::MAT2 // material
 		);
-		sphere->LoadModel("sphere.sjg");
+		sphere->LoadModel("shapes/sphere.sjg");
 
 		ConstantBuffer cb = sphere->getConstantBuffer();
 		cb.LightColour = { 1-radius, radius, radius, 1.0f };
