@@ -7,7 +7,12 @@ protected:
 	void setupFixedObjects() override;
 
 public:
-	Scenario4(const CComPtr <ID3D11Device>& pDevice, const CComPtr <ID3D11DeviceContext>& pContext) : Scenario(pDevice, pContext) {}
+	Scenario4(const CComPtr <ID3D11Device>& pDevice, const CComPtr <ID3D11DeviceContext>& pContext) : Scenario(pDevice, pContext)
+	{
+		setNumMovingSpheres(10000);
+		setMinRadius(0.01f);
+		setMaxRadius(0.03f);
+	}
 	~Scenario4() = default;
 
 	void onLoad() override;

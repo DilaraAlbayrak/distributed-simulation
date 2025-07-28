@@ -1,14 +1,15 @@
 #pragma once
+#include "NetworkManager.h"
 #include "PhysicsObject.h"
 #include "ShaderManager.h"
 #include <optional>
 #include <vector>
 #include <mutex>
+#include <random>
 
 using globals::AXIS_LENGTH;
 
 // A lightweight struct to hold information about a requested spawn.
-// This is thread-safe to create and queue from any thread (e.g., network thread).
 struct SpawnRequest
 {
 	DirectX::XMFLOAT3 position;
@@ -18,45 +19,66 @@ struct SpawnRequest
 class Scenario
 {
 private:
+	// --- Resources for Fixed (Non-Instanced) Objects ---
 	// These are kept in parallel to the object list in PhysicsManager.
-	// The order of creation must be maintained.
 	std::vector<CComPtr<ID3D11Buffer>> vertexBuffers;
 	std::vector<CComPtr<ID3D11Buffer>> indexBuffers;
 	std::vector<CComPtr<ID3D11InputLayout>> inputLayouts;
 	std::vector<CComPtr<ID3D11Buffer>> constantBuffers;
 	std::vector<UINT> indexCounts;
 
-	// --- DirectX Handles ---
+	// --- DirectX Handles & Shaders ---
 	CComPtr <ID3D11Device> device;
 	CComPtr <ID3D11DeviceContext> context;
-	CComPtr<ID3D11VertexShader> vertexShader;
+	CComPtr<ID3D11VertexShader> vertexShader; // This will now be the INSTANCED shader
+	CComPtr<ID3D11VertexShader> vertexShader_NonInstanced;
 	CComPtr<ID3D11PixelShader> pixelShader;
-	CComPtr<ID3DBlob> vertexShaderBlob;
+	CComPtr<ID3DBlob> vertexShaderBlob; // For non-instanced layout
+	CComPtr<ID3DBlob> _vertexShaderInstancedBlob; // NEW: For instanced layout
 	CComPtr<ID3DBlob> pixelShaderBlob;
 
-	// --- Scene Setup & Spawning Logic (Responsibility of Scenario) ---
-	//static int integrationMethod; // 
+	// --- Resources for Moving Spheres (Instanced) ---
+	CComPtr<ID3D11Buffer> _sphereVertexBufferInstanced;
+	CComPtr<ID3D11Buffer> _sphereIndexBufferInstanced;
+	CComPtr<ID3D11InputLayout> _inputLayoutInstanced;
+	UINT _sphereIndexCountInstanced = 0;
+
+	// --- Instancing Data Handling ---
+	//std::vector<DirectX::XMMATRIX> instanceWorldMatrices;
+	std::vector<InstanceData> instanceData;
+	CComPtr<ID3D11Buffer> instanceBuffer;
+	UINT numInstances = 0;
+
+	// --- Scene Setup & Spawning Logic ---
 	int numMovingSpheres = 25;
 	float minRadius = 0.01f;
 	float maxRadius = 0.01f;
 
-	// Pre-calculated spawn locations
 	size_t spawnIndex = 0;
 	std::vector<std::tuple<float, float, float>> spawnData = {};
 
-	// Thread-safe queue for pending spawn requests
 	std::vector<SpawnRequest> _pendingSpawns;
-	std::mutex _spawnMutex; // Protects access to _pendingSpawns
+	std::mutex _spawnMutex;
 
-	// Private helper to create GPU resources for an object.
+	// distributed part
+	int _nextPeerId = 0; // For distributed scenarios, to assign unique IDs to new objects
+	std::mt19937 _randGen;
+	std::uniform_int_distribution<int> _peerDist;
+	static const DirectX::XMFLOAT4 peerColors[];
+	unsigned int _nextObjectId = 0; // For distributed scenarios, to assign unique IDs to new objects
+
+	// --- Private Helper Methods ---
 	HRESULT initRenderingResources(PhysicsObject* obj);
 
 protected:
 	Scenario(const CComPtr <ID3D11Device>& pDevice, const CComPtr <ID3D11DeviceContext>& pContext) : device(pDevice), context(pContext)
 	{
+		_randGen = std::mt19937(4);
+		_peerDist = std::uniform_int_distribution<int>(0, globals::NUM_PEERS - 1);
 	}
 
 	void initObjects(const std::wstring& shaderFile = L"Simulation.fx");
+	void initInstancedRendering();
 	void unloadScenario();
 	void applySharedGUI();
 
@@ -67,13 +89,13 @@ protected:
 	}
 	std::vector<std::tuple<float, float, float>> generateUniform2DPositions(int n, float areaHalfSize, float minRadius, float maxRadius);
 
-	// This is now a private helper called by processPendingSpawns to finalize object creation.
 	void addPhysicsObject(std::unique_ptr<PhysicsObject> obj);
 
-	// To be implemented by derived classes like Scenario1, Scenario2, etc.
 	virtual void setupFixedObjects() = 0;
 
 	static float randomFloat(float min, float max);
+
+	void updateInstanceBuffer();
 
 public:
 	virtual ~Scenario() = default;
@@ -93,9 +115,7 @@ public:
 	void renderObjects();
 	void onFrameUpdate(float dt = 0.016f);
 
-	// Queues a request to spawn a sphere. Safe to call from any thread.
 	void spawnMovingSphere();
-	// Processes all queued requests. Must be called on the main/render thread.
 	void processPendingSpawns();
 
 	void setNumMovingSpheres(int n) { numMovingSpheres = n; }

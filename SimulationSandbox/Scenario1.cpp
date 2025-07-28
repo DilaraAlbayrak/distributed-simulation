@@ -4,9 +4,8 @@
 
 void Scenario1::setupFixedObjects()
 {
-	auto createFixedSphere = [&](float x, float y, float z, bool elevate=false)
+	auto createFixedSphere = [&](float x, float y, float z, float radius, bool elevate=false)
 	{
-		float radius = Scenario::randomFloat(0.5f, 0.8f);
 		float scale = radius * 2.0f;
 
 		if (elevate) {
@@ -19,7 +18,7 @@ void Scenario1::setupFixedObjects()
 				DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
 				DirectX::XMFLOAT3(scale, scale, scale)),
 			true, // fixed
-			1.0f, // mass
+			50.0f, // mass
 			Material::MAT2 // material
 		);
 		sphere->LoadModel("shapes/sphere.sjg");
@@ -33,10 +32,10 @@ void Scenario1::setupFixedObjects()
 	};
 
 	//createFixedSphere(0.0f, 0.0f, -3.0f);
-	createFixedSphere(0.5f, -globals::AXIS_LENGTH, 0.5f, true);
-	createFixedSphere(-globals::AXIS_LENGTH, 0.8f, 1.0f);
-	createFixedSphere(globals::AXIS_LENGTH, 0.8f, -1.2f);
-	createFixedSphere(-0.8f, 0.5f, -globals::AXIS_LENGTH);
+	createFixedSphere(0.5f, -globals::AXIS_LENGTH, 0.5f, 0.55f, true);
+	createFixedSphere(-globals::AXIS_LENGTH, 0.8f, 1.0f, 0.6f);
+	createFixedSphere(globals::AXIS_LENGTH, 0.8f, -1.2f, 0.7f);
+	createFixedSphere(-0.8f, 0.5f, -globals::AXIS_LENGTH, 0.65f);
 }
 
 void Scenario1::onLoad()
@@ -44,21 +43,14 @@ void Scenario1::onLoad()
 	OutputDebugString(L">>>>>>>>>> Scenario1::onLoad\n");
 
 	initObjects();
+
+	initInstancedRendering();
+
 	spawnRoom();
 
 	setupFixedObjects();
-	OutputDebugString(L">>>>>>>>>> Scenario1::setupFixedObjects\n");
-
-	setNumMovingSpheres(100);
-	OutputDebugString(L">>>>>>>>>> Scenario1::setNumMovingSpheres\n");
-	setMinRadius(0.1f);
-	OutputDebugString(L">>>>>>>>>> Scenario1::setMinRadius\n");
-	setMaxRadius(0.1f);
-	OutputDebugString(L">>>>>>>>>> Scenario1::setMaxRadius\n");
+	
 	generateSpawnData(globals::AXIS_LENGTH);
-	OutputDebugString(L">>>>>>>>>> Scenario1::generateSpawnData\n");
-
-	OutputDebugString(L">>>>>>>>>> Scenario1::initObjects\n");
 }
 
 void Scenario1::onUnload()

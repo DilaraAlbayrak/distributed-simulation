@@ -5,32 +5,68 @@
 #include <span>
 #include <memory>
 #include <shared_mutex>
-#include <functional> // Required for std::function
-#include "PhysicsObject.h"
-#include "Grid.h"
+#include <functional>
 #include <barrier>
+#include <utility>
+#include "PhysicsObject.h"
+
+struct CollisionPair
+{
+	PhysicsObject* objA;
+	PhysicsObject* objB;
+};
 
 class PhysicsManager
 {
 private:
 	static std::unique_ptr<PhysicsManager> _instance;
 
-	std::vector<std::shared_ptr<PhysicsObject>> _physicsObjects;
-	Grid _spatialGrid;
-	// to sync threads
-	std::unique_ptr<std::barrier<>> _syncBarrier;
+	// --- Object Lists ---
+	std::vector<std::shared_ptr<PhysicsObject>> _movingObjects;
+	std::vector<std::shared_ptr<PhysicsObject>> _fixedObjects;
 
+	std::vector<std::vector<CollisionPair>> _threadCollisionPairs;
+	std::vector<CollisionPair> _allCollisionPairs;
+
+	// --- Spatial Grid Members ---
+	std::vector<std::vector<int>> _grid;
+	std::vector<std::mutex> _gridMutexes;
+	int _gridCellsX = 0;
+	int _gridCellsY = 0;
+	int _gridCellsZ = 0;
+	float _cellSize = 0.0f;
+	DirectX::XMFLOAT3 _worldMin;
+	DirectX::XMFLOAT3 _worldMax;
+
+	// --- Threading and Synchronization ---
 	mutable std::shared_mutex _objectsMutex;
 	std::vector<std::thread> _threads;
 	std::atomic<bool> _running{ false };
+	std::unique_ptr<std::barrier<>> _syncBarrier;
 
+	// For clean thread shutdown (transition between scenarios)
+	std::mutex _runMutex;
+	std::condition_variable _runCondition;
+
+	// --- Collision Pair Storage ---
+	std::vector<std::vector<std::pair<int, int>>> _threadMovingPairs;
+	std::vector<std::vector<std::pair<int, int>>> _threadFixedPairs;
+	std::vector<std::pair<int, int>> _allMovingPairs;
+	std::vector<std::pair<int, int>> _allFixedPairs;
+
+	// --- Private Methods ---
+	void initGrid(float cellSize, const DirectX::XMFLOAT3& worldMin, const DirectX::XMFLOAT3& worldMax);
+	int getGridIndex(const DirectX::XMFLOAT3& position) const;
 	void simulationLoop(int threadIndex, int numThreads, float dt);
 
 public:
-	PhysicsManager() : _spatialGrid(globals::AXIS_LENGTH * 2.0f, 100) {}
+	PhysicsManager()
+	{
+		_worldMin = { -globals::AXIS_LENGTH, -globals::AXIS_LENGTH, -globals::AXIS_LENGTH };
+		_worldMax = { globals::AXIS_LENGTH, globals::AXIS_LENGTH, globals::AXIS_LENGTH };
+	}
 	~PhysicsManager();
 
-	// Prevent copying and moving of the singleton instance.
 	PhysicsManager(const PhysicsManager&) = delete;
 	PhysicsManager& operator=(const PhysicsManager&) = delete;
 	PhysicsManager(PhysicsManager&&) = delete;
@@ -41,10 +77,13 @@ public:
 	void addObject(std::shared_ptr<PhysicsObject> obj);
 	void clearObjects();
 
-	// It acquires a lock and then executes the provided function, passing the object list to it.
-	// This guarantees that the list is accessed only while the lock is held.
-	void accessPhysicsObjects(const std::function<void(std::span<const std::shared_ptr<PhysicsObject>>)>& accessor) const;
+	void accessAllObjects(const std::function<void(
+		std::span<const std::shared_ptr<PhysicsObject>>,
+		std::span<const std::shared_ptr<PhysicsObject>>
+		)>& accessor) const;
 
 	void startThreads(int numThreads, float dt);
 	void stopThreads();
+
+	bool isRunning() const { return _running.load(); }
 };

@@ -39,7 +39,11 @@ void TestScenario2::onLoad()
 	OutputDebugString(L">>>>>>>>>> TestScenario2::onLoad\n");
 
 	initObjects();
+
+	initInstancedRendering();
+
 	spawnRoom();
+
 	setupFixedObjects();
 }
 

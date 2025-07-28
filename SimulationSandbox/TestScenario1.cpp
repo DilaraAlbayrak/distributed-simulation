@@ -38,8 +38,14 @@ void TestScenario1::onLoad()
 	OutputDebugString(L">>>>>>>>>> TestScenario1::onLoad\n");
 
 	initObjects();
+
+	initInstancedRendering();
+
 	spawnRoom();
+
 	setupFixedObjects();
+
+	//generateSpawnData(globals::AXIS_LENGTH);
 }
 
 void TestScenario1::onUnload()

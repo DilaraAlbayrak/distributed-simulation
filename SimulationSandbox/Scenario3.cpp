@@ -12,12 +12,10 @@ void Scenario3::onLoad()
 	OutputDebugString(L">>>>>>>>>> Scenario3::onLoad\n");
 
 	initObjects();
-
+	initInstancedRendering();
 	spawnRoom();
 
-	setNumMovingSpheres(5000);
-	setMinRadius(0.01f);
-	setMaxRadius(0.03f);
+	// for moving spheres
 	generateSpawnData(globals::AXIS_LENGTH);
 }
 

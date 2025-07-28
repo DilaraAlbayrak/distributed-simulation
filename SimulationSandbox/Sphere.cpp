@@ -187,7 +187,8 @@ bool Sphere::isCollidingWithCapsule(const Capsule& capsule, DirectX::XMFLOAT3& o
 
         if (dist > EPSILON) {
             // The normal points from the capsule's closest point towards the sphere's centre.
-            XMStoreFloat3(&outNormal, diff / dist);
+            //XMStoreFloat3(&outNormal, diff / dist);
+            XMStoreFloat3(&outNormal, XMVectorScale(diff, 1.0f / dist));
         }
         else {
             // The sphere's centre is on the capsule's line segment.

@@ -225,7 +225,8 @@ struct GlobalState FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_TIMESTEP = 4,
     VT_GRAVITYON = 6,
     VT_REVERSEGRAVITY = 8,
-    VT_INTEGRATIONMETHOD = 10
+    VT_INTEGRATIONMETHOD = 10,
+    VT_SCENARIOID = 12
   };
   float timestep() const {
     return GetField<float>(VT_TIMESTEP, 0.0f);
@@ -239,12 +240,16 @@ struct GlobalState FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   int32_t integrationMethod() const {
     return GetField<int32_t>(VT_INTEGRATIONMETHOD, 0);
   }
+  int32_t scenarioId() const {
+    return GetField<int32_t>(VT_SCENARIOID, -1);
+  }
   bool Verify(::flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_TIMESTEP, 4) &&
            VerifyField<uint8_t>(verifier, VT_GRAVITYON, 1) &&
            VerifyField<uint8_t>(verifier, VT_REVERSEGRAVITY, 1) &&
            VerifyField<int32_t>(verifier, VT_INTEGRATIONMETHOD, 4) &&
+           VerifyField<int32_t>(verifier, VT_SCENARIOID, 4) &&
            verifier.EndTable();
   }
 };
@@ -265,6 +270,9 @@ struct GlobalStateBuilder {
   void add_integrationMethod(int32_t integrationMethod) {
     fbb_.AddElement<int32_t>(GlobalState::VT_INTEGRATIONMETHOD, integrationMethod, 0);
   }
+  void add_scenarioId(int32_t scenarioId) {
+    fbb_.AddElement<int32_t>(GlobalState::VT_SCENARIOID, scenarioId, -1);
+  }
   explicit GlobalStateBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -281,8 +289,10 @@ inline ::flatbuffers::Offset<GlobalState> CreateGlobalState(
     float timestep = 0.0f,
     bool gravityOn = false,
     bool reverseGravity = false,
-    int32_t integrationMethod = 0) {
+    int32_t integrationMethod = 0,
+    int32_t scenarioId = -1) {
   GlobalStateBuilder builder_(_fbb);
+  builder_.add_scenarioId(scenarioId);
   builder_.add_integrationMethod(integrationMethod);
   builder_.add_timestep(timestep);
   builder_.add_reverseGravity(reverseGravity);
@@ -294,18 +304,10 @@ struct PeerAnnounce FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef PeerAnnounceBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_PEERID = 4,
-    VT_COLOUR = 6,
-    VT_NAME = 8,
-    VT_PORT = 10
+    VT_PORT = 6
   };
   int32_t peerId() const {
     return GetField<int32_t>(VT_PEERID, 0);
-  }
-  int32_t colour() const {
-    return GetField<int32_t>(VT_COLOUR, 0);
-  }
-  const ::flatbuffers::String *name() const {
-    return GetPointer<const ::flatbuffers::String *>(VT_NAME);
   }
   int32_t port() const {
     return GetField<int32_t>(VT_PORT, 0);
@@ -313,9 +315,6 @@ struct PeerAnnounce FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   bool Verify(::flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<int32_t>(verifier, VT_PEERID, 4) &&
-           VerifyField<int32_t>(verifier, VT_COLOUR, 4) &&
-           VerifyOffset(verifier, VT_NAME) &&
-           verifier.VerifyString(name()) &&
            VerifyField<int32_t>(verifier, VT_PORT, 4) &&
            verifier.EndTable();
   }
@@ -327,12 +326,6 @@ struct PeerAnnounceBuilder {
   ::flatbuffers::uoffset_t start_;
   void add_peerId(int32_t peerId) {
     fbb_.AddElement<int32_t>(PeerAnnounce::VT_PEERID, peerId, 0);
-  }
-  void add_colour(int32_t colour) {
-    fbb_.AddElement<int32_t>(PeerAnnounce::VT_COLOUR, colour, 0);
-  }
-  void add_name(::flatbuffers::Offset<::flatbuffers::String> name) {
-    fbb_.AddOffset(PeerAnnounce::VT_NAME, name);
   }
   void add_port(int32_t port) {
     fbb_.AddElement<int32_t>(PeerAnnounce::VT_PORT, port, 0);
@@ -351,30 +344,11 @@ struct PeerAnnounceBuilder {
 inline ::flatbuffers::Offset<PeerAnnounce> CreatePeerAnnounce(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     int32_t peerId = 0,
-    int32_t colour = 0,
-    ::flatbuffers::Offset<::flatbuffers::String> name = 0,
     int32_t port = 0) {
   PeerAnnounceBuilder builder_(_fbb);
   builder_.add_port(port);
-  builder_.add_name(name);
-  builder_.add_colour(colour);
   builder_.add_peerId(peerId);
   return builder_.Finish();
-}
-
-inline ::flatbuffers::Offset<PeerAnnounce> CreatePeerAnnounceDirect(
-    ::flatbuffers::FlatBufferBuilder &_fbb,
-    int32_t peerId = 0,
-    int32_t colour = 0,
-    const char *name = nullptr,
-    int32_t port = 0) {
-  auto name__ = name ? _fbb.CreateString(name) : 0;
-  return NetworkSim::CreatePeerAnnounce(
-      _fbb,
-      peerId,
-      colour,
-      name__,
-      port);
 }
 
 struct Message FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {

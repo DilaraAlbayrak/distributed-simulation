@@ -5,13 +5,14 @@
 #include <fstream>
 #include <thread>
 #include "Scenario.h"
+#include "PhysicsManager.h" 
 
 using namespace DirectX;
 
 #define COMPILE_CSO
 
-constexpr UINT _windowWidth = 1200;
-constexpr UINT _windowHeight = 900;
+constexpr UINT _windowWidth = 800;
+constexpr UINT _windowHeight = 600;
 
 //--------------------------------------------------------------------------------------
 // Structures
@@ -132,28 +133,12 @@ class D3DFramework final {
 	std::unique_ptr<Scenario> _scenario;
 	std::atomic<bool> _scenarioReady{ false };
 
+	int _currentScenarioId = 0; 
+
 	static std::unique_ptr<D3DFramework> _instance;
 
 	void initImGui();
 	void renderImGui();
-
-	void setScenario(std::unique_ptr<Scenario> scenario)
-	{
-		_scenarioReady = false;
-
-		if (_scenario)
-			_scenario->onUnload();
-
-		if (!_pd3dDevice || !_pImmediateContext) {
-			OutputDebugString(L"[ERROR] Device or context is null!\n");
-		}
-		scenario->setDeviceAndContext(_pd3dDevice, _pImmediateContext);
-
-		_scenario = std::move(scenario);
-		_scenario->onLoad();
-		_scenarioReady = true;
-	}
-
 public:
 
 	D3DFramework() = default;
@@ -171,6 +156,7 @@ public:
 	HRESULT initWindow(HINSTANCE hInstance, int nCmdShow);
 	HRESULT initDevice();
 	void render();
+	void setScenario(std::unique_ptr<Scenario> scenario, int scenarioId = 0);
 
 	HWND getWindowHandle() const { return _hWnd; }
 	ID3D11Device* getDevice() const { return _pd3dDevice; }
@@ -181,4 +167,6 @@ public:
 
 	void setBackgroudColor(const XMFLOAT4& colour) { _bgColour = colour; }
 	XMFLOAT4 getBackgroundColor() const { return _bgColour; }
+
+	int getCurrentScenarioId() const { return _currentScenarioId; }
 };

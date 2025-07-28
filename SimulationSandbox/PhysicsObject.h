@@ -39,7 +39,14 @@ struct ConstantBuffer
    DirectX::XMFLOAT4 DarkColour = { 0.3f,0.4f,0.5f, 1.0f }; 
    DirectX::XMFLOAT2 CheckerboardSize = { 1.0f, 1.0f }; // Adjust tile size  
    DirectX::XMFLOAT2 Padding = { 0.0f, 0.0f };  
-};  
+}; 
+
+struct InstanceData
+{
+	DirectX::XMMATRIX World;
+	DirectX::XMFLOAT4 LightColour;
+	DirectX::XMFLOAT4 DarkColour;
+};
 
 class PhysicsObject  
 {  
@@ -49,6 +56,10 @@ private:
 	std::vector<Vertex> _vertices;  
 	std::vector<int> _indices;  
 	ConstantBuffer _constantBuffer;  
+
+	// for distributed
+	int _peerID = -1; // ID for peer-to-peer communication, if needed
+	int _objectId = -1; // Unique ID for this object, used in networking
 
 	bool isFixed = false;  
 	DirectX::XMFLOAT3 velocity = { 0.0f, 0.0f, 0.0f };  
@@ -125,4 +136,10 @@ public:
 
 	// threading
 	std::mutex& getCollisionMutex() const { return collisionMutex; }
+
+	// networking
+	void setPeerID(int id) { _peerID = id; }
+	int getPeerID() const { return _peerID; }
+	void setObjectId(int id) { _objectId = id; }
+	int getObjectId() const { return _objectId; }
 };  

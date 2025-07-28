@@ -19,13 +19,12 @@ table GlobalState {
   gravityOn: bool;
   reverseGravity: bool;
   integrationMethod: int;
+  scenarioId:int = -1;
 }
 
 table PeerAnnounce {
-  peerId: int;
-  colour: int;
-  name: string;
-  port: int;
+  peerId:int;
+  port:int;
 }
 
 union MessageData {

@@ -14,6 +14,8 @@
 #include "TestScenario2.h"
 #include "TestScenario3.h"
 
+//#include "NetworkManager.h" // didn't like it but had to
+
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 std::unique_ptr<D3DFramework> D3DFramework::_instance = std::make_unique<D3DFramework>();
@@ -325,28 +327,28 @@ void D3DFramework::renderImGui() {
 		if (ImGui::BeginMenu("Scenario"))
 		{
 			if (ImGui::MenuItem("Scenario 1", nullptr, false)) {
-				setScenario(std::make_unique<Scenario1>(_pd3dDevice, _pImmediateContext));
+				setScenario(std::make_unique<Scenario1>(_pd3dDevice, _pImmediateContext), 1);
 			}
 			if (ImGui::MenuItem("Scenario 2", nullptr, false)) {
-				setScenario(std::make_unique<Scenario2>(_pd3dDevice, _pImmediateContext));
+				setScenario(std::make_unique<Scenario2>(_pd3dDevice, _pImmediateContext), 2);
 			}
 			if (ImGui::MenuItem("Scenario 3", nullptr, false)) {
-				setScenario(std::make_unique<Scenario3>(_pd3dDevice, _pImmediateContext));
+				setScenario(std::make_unique<Scenario3>(_pd3dDevice, _pImmediateContext), 3);
 			}
 			if (ImGui::MenuItem("Scenario 4", nullptr, false)) {
-				setScenario(std::make_unique<Scenario4>(_pd3dDevice, _pImmediateContext));
+				setScenario(std::make_unique<Scenario4>(_pd3dDevice, _pImmediateContext), 4);
 			}
 			if (ImGui::MenuItem("Scenario 5", nullptr, false)) {
-				setScenario(std::make_unique<Scenario5>(_pd3dDevice, _pImmediateContext));
+				setScenario(std::make_unique<Scenario5>(_pd3dDevice, _pImmediateContext), 5);
 			}
 			if (ImGui::MenuItem("Test Scenario 1", nullptr, false)) {
-				setScenario(std::make_unique<TestScenario1>(_pd3dDevice, _pImmediateContext));
+				setScenario(std::make_unique<TestScenario1>(_pd3dDevice, _pImmediateContext), -1);
 			}
 			if (ImGui::MenuItem("Test Scenario 2", nullptr, false)) {
-				setScenario(std::make_unique<TestScenario2>(_pd3dDevice, _pImmediateContext));
+				setScenario(std::make_unique<TestScenario2>(_pd3dDevice, _pImmediateContext), -2);
 			}
 			if (ImGui::MenuItem("Test Scenario 3", nullptr, false)) {
-				setScenario(std::make_unique<TestScenario3>(_pd3dDevice, _pImmediateContext));
+				setScenario(std::make_unique<TestScenario3>(_pd3dDevice, _pImmediateContext), -3);
 			}
 			ImGui::EndMenu();
 		}
@@ -473,10 +475,11 @@ void D3DFramework::render()
 		}
 	};
 
-	if (_scenario)
+	if (_scenario && _scenarioReady)
 	{
 		_scenario->spawnMovingSphere();
 		_scenario->processPendingSpawns();
+		_scenario->onFrameUpdate(deltaTime);
 		_scenario->renderObjects();
 	}
 
@@ -485,4 +488,39 @@ void D3DFramework::render()
 
 	renderImGui();
 	_swapChain->Present(0, 0);
+}
+
+#include "NetworkManager.h"
+
+void D3DFramework::setScenario(std::unique_ptr<Scenario> scenario, int scenarioId)
+{
+	_scenarioReady = false;
+
+	auto& physicsManager = PhysicsManager::getInstance();
+	auto& networkManager = NetworkManager::getInstance();
+
+	if (physicsManager.isRunning())
+		physicsManager.stopThreads();
+
+	if (_scenario)
+		_scenario->onUnload();
+
+	_scenario = std::move(scenario);
+	_currentScenarioId = scenarioId;
+
+	if (!_scenario) {
+		networkManager.broadcastScenarioChange(0); // Broadcast that we have no scenario
+		return;
+	}
+
+	_scenario->onLoad();
+
+	//unsigned int totalCores = std::thread::hardware_concurrency();
+	//unsigned int simThreadCount = (totalCores > 3) ? totalCores - 3 : 4; // Default to 4 if unsure
+	physicsManager.startThreads(1, 0.008f);
+
+	_scenarioReady = true;
+
+	// Directly tell the NetworkManager to broadcast this change NOW.
+	networkManager.broadcastScenarioChange(scenarioId);
 }

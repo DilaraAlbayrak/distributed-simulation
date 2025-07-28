@@ -12,7 +12,7 @@ void Scenario5::setupFixedObjects()
 				DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
 				scale),
 			true, // isFixed
-			50.0f, // mass
+			1.0f, // mass
 			Material::MAT2 // material
 		);
 
@@ -37,25 +37,25 @@ void Scenario5::setupFixedObjects()
 
 	DirectX::XMFLOAT3 scale;
 
-	scale = randomScale();
+	scale = randomScale(1.3f, 1.3f);
 	createFixedCube(
 		{ 0.5f, -globals::AXIS_LENGTH + scale.y * 0.5f + 0.01f, 0.5f },
 		scale
 	);
 
-	scale = randomScale();
+	scale = randomScale(1.5f, 1.5f);
 	createFixedCube(
 		{ -globals::AXIS_LENGTH + scale.x * 0.5f + 0.01f, 0.8f, 1.0f },
 		scale
 	);
 
-	scale = randomScale();
+	scale = randomScale(1.7f, 1.7f);
 	createFixedCube(
 		{ globals::AXIS_LENGTH - scale.x * 0.5f - 0.01f, 0.8f, -1.2f },
 		scale
 	);
 
-	scale = randomScale();
+	scale = randomScale(1.9f, 1.9f);
 	createFixedCube(
 		{ -0.8f, 0.5f, -globals::AXIS_LENGTH + scale.z * 0.5f + 0.01f },
 		scale
@@ -68,13 +68,12 @@ void Scenario5::onLoad()
 
 	initObjects();
 
+	initInstancedRendering();
+
 	spawnRoom();
 
 	setupFixedObjects();
 
-	setNumMovingSpheres(100);
-	setMinRadius(0.1f);
-	setMaxRadius(0.1f);
 	generateSpawnData(globals::AXIS_LENGTH);
 }
 

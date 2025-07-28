@@ -22,7 +22,7 @@ void Scenario2::setupFixedObjects()
 					rotation,
 					scaleVec),
 				true, // isFixed
-				50.0f, // mass
+				1.0f, // mass
 				Material::MAT2 // material
 			);
 
@@ -40,15 +40,17 @@ void Scenario2::setupFixedObjects()
 
 	// This capsule is on the floor (a y-axis wall).
 	// Its origin is placed exactly on the wall plane to appear halfway through.
-	radius = Scenario::randomFloat(0.7f, 1.3f);
+	//radius = Scenario::randomFloat(0.7f, 1.3f);
+	radius = 0.8f;
 	createFixedCapsule(
-		{ 0.0f, -globals::AXIS_LENGTH, 0.0f }, // Positioned directly on the floor plane.
+		{ 0.0f, -globals::AXIS_LENGTH+radius, 0.0f }, // Positioned directly on the floor plane.
 		{ 90.0f, 0.0f, 0.0f }, // Rotated to lie along the world z-axis.
 		radius
 	);
 
 	// This capsule is on the left wall (an x-axis wall).
-	radius = Scenario::randomFloat(0.7f, 1.3f);
+	//radius = Scenario::randomFloat(0.7f, 1.3f);
+	radius = 0.9f;
 	createFixedCapsule(
 		{ -globals::AXIS_LENGTH, 0.8f, 1.0f }, // Positioned directly on the left wall plane.
 		{ 0.0f, 0.0f, 90.0f }, // Rotated to lie along the world x-axis.
@@ -56,7 +58,8 @@ void Scenario2::setupFixedObjects()
 	);
 
 	// This capsule is on the right wall (an x-axis wall).
-	radius = Scenario::randomFloat(0.7f, 1.3f);
+	//radius = Scenario::randomFloat(0.7f, 1.3f);
+	radius = 1.1f;
 	createFixedCapsule(
 		{ globals::AXIS_LENGTH, 0.8f, -1.2f }, // Positioned directly on the right wall plane.
 		{ 0.0f, 0.0f, 90.0f }, // Rotated to lie along the world x-axis.
@@ -64,7 +67,8 @@ void Scenario2::setupFixedObjects()
 	);
 
 	// This capsule is on the back wall (a z-axis wall).
-	radius = Scenario::randomFloat(0.7f, 1.3f);
+	//radius = Scenario::randomFloat(0.7f, 1.3f);
+	radius = 1.0f;
 	createFixedCapsule(
 		{ -0.8f, 0.5f, -globals::AXIS_LENGTH }, // Positioned directly on the back wall plane.
 		{ 90.0f, 0.0f, 0.0f }, // Rotated to lie along the world z-axis.
@@ -78,13 +82,12 @@ void Scenario2::onLoad()
 
 	initObjects();
 
+	initInstancedRendering();
+
 	spawnRoom();
 
 	setupFixedObjects();
 
-	setNumMovingSpheres(100);
-	setMinRadius(0.1f);
-	setMaxRadius(0.1f);
 	generateSpawnData(globals::AXIS_LENGTH);
 }
 
