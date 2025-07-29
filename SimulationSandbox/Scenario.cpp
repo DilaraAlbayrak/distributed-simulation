@@ -323,7 +323,7 @@ void Scenario::processPendingSpawns()
 		);
 		int localPeerId = NetworkManager::getInstance().getLocalPeerId();
 		int objectId = (localPeerId << 24) | _nextObjectId++; // Combine local peer ID with a unique object ID, shift to ensure uniqueness across peers
-		//sphere->setObjectId(_nextObjectId++);
+		sphere->setObjectId(_nextObjectId++);
 
 		_nextPeerId = _peerDist(_randGen);
 		sphere->setPeerID(_nextPeerId); // Assign a random peer ID for distributed scenarios

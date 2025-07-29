@@ -1,3 +1,4 @@
+#include "NetworkManager.h"
 #include "PhysicsManager.h"
 #include <algorithm>
 #include <chrono>
@@ -27,6 +28,14 @@ PhysicsManager::~PhysicsManager()
 void PhysicsManager::addObject(std::shared_ptr<PhysicsObject> obj)
 {
 	if (!obj) return;
+
+	// Add the object to the ID map for network lookups
+	int objId = obj->getObjectId();
+	if (objId != -1) {
+		std::unique_lock lock(_mapMutex);
+		_objectIDMap[objId] = obj;
+	}
+
 	std::unique_lock lock(_objectsMutex);
 	if (obj->getFixed())
 	{
@@ -40,6 +49,10 @@ void PhysicsManager::addObject(std::shared_ptr<PhysicsObject> obj)
 
 void PhysicsManager::clearObjects()
 {
+	std::unique_lock mapLock(_mapMutex);
+	_objectIDMap.clear();
+	mapLock.unlock();
+
 	std::unique_lock lock(_objectsMutex);
 	_movingObjects.clear();
 	_fixedObjects.clear();
@@ -234,13 +247,25 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 	}
 	_syncBarrier->arrive_and_wait();
 
+	auto& networkManager = NetworkManager::getInstance();
+	int localPeerId = networkManager.getLocalPeerId();
+
 	// --- Phase 4: Update Physics State (Parallel) ---
 	for (size_t i = startIndex; i < endIndex; ++i)
 	{
 		if (const auto& obj = localMovingObjects[i])
 		{
-			obj->Update(dt);
-			obj->constrainToBounds();
+			/*obj->Update(dt);
+			obj->constrainToBounds();*/
+			if (obj->getPeerID() == localPeerId)
+			{
+				// We own this object, so we calculate its physics.
+				obj->Update(dt);
+				obj->constrainToBounds();
+
+				// After updating, broadcast the new state to other peers.
+				networkManager.sendObjectUpdate(obj->getObjectId(), obj->getPosition(), obj->getVelocity(), obj->getScale());
+			}
 		}
 	}
 }
@@ -320,4 +345,22 @@ void PhysicsManager::stopThreads()
 		}
 	}
 	_threads.clear();
+}
+
+std::shared_ptr<PhysicsObject> PhysicsManager::getObjectById(int objectId)
+{
+	std::shared_lock lock(_mapMutex);
+	auto it = _objectIDMap.find(objectId);
+	if (it != _objectIDMap.end()) {
+		return it->second;
+	}
+	return nullptr;
+}
+
+void PhysicsManager::updateObjectState(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale)
+{
+	auto obj = getObjectById(objectId);
+	if (obj) {
+		obj->setNetworkState(position, velocity, scale);
+	}
 }

@@ -11,6 +11,7 @@ table ObjectUpdate {
   objectId: int;
   position: Vec3;
   velocity: Vec3;
+  scale:Vec3;
   owner: int;
 }
 

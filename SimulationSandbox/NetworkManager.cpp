@@ -147,12 +147,42 @@ void NetworkManager::networkLoop() {
             case MessageData_GlobalState:
                 handleGlobalState(buffer, bytes);
                 break;
+            case MessageData_ObjectUpdate:
+                handleObjectUpdate(buffer, bytes);
+                break;
             }
         }
 
         checkForLocalStateChangesAndBroadcast();
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(250));
     }
+}
+
+void NetworkManager::handleObjectUpdate(const char* data, int size) {
+    const Message* msg = GetMessage(data);
+    const ObjectUpdate* update = msg->data_as_ObjectUpdate();
+    if (!update) return;
+
+    // We received an update for an object owned by another peer.
+    // We must not calculate its physics; just apply the state.
+    int objectId = update->objectId();
+    int ownerId = update->owner();
+
+    // Ignore updates for our own objects to prevent feedback loops.
+    if (ownerId == _localPeerId) return;
+
+    DirectX::XMFLOAT3 position = { update->position()->x(), update->position()->y(), update->position()->z() };
+    DirectX::XMFLOAT3 velocity = { update->velocity()->x(), update->velocity()->y(), update->velocity()->z() };
+    DirectX::XMFLOAT3 scale = { 1.0f, 1.0f, 1.0f }; 
+    if (update->scale()) {
+        scale = { update->scale()->x(), update->scale()->y(), update->scale()->z() };
+    }
+
+    // Queue this action to be run on the main thread to avoid race conditions.
+    std::lock_guard<std::mutex> lock(_commandMutex);
+    _mainThreadCommandQueue.push_back([objectId, position, velocity, scale]() {
+        PhysicsManager::getInstance().updateObjectState(objectId, position, velocity, scale);
+        });
 }
 
 void NetworkManager::broadcastScenarioChange(int scenarioId)
@@ -356,8 +386,30 @@ void NetworkManager::sendPeerAnnounce() {
 //    }
 //}
 
-void NetworkManager::sendObjectUpdate(int objectId, const DirectX::XMFLOAT3& position) {
-    // This will be implemented in the next step.
+void NetworkManager::sendObjectUpdate(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale) {
+    if (_knownPeers.empty()) return;
+
+    flatbuffers::FlatBufferBuilder builder;
+
+    auto posVec = CreateVec3(builder, position.x, position.y, position.z);
+    auto velVec = CreateVec3(builder, velocity.x, velocity.y, velocity.z);
+    auto scaleVec = CreateVec3(builder, scale.x, scale.y, scale.z); 
+
+    auto updatePayload = CreateObjectUpdate(builder, objectId, posVec, velVec, scaleVec, _localPeerId);
+
+    auto msg = CreateMessage(builder, GetTickCount64(), MessageData_ObjectUpdate, updatePayload.Union());
+    builder.Finish(msg);
+
+    const char* messageData = reinterpret_cast<const char*>(builder.GetBufferPointer());
+    int messageSize = builder.GetSize();
+
+    // Broadcast to all known peers
+    std::lock_guard<std::mutex> lock(_recvMutex);
+    for (const auto& [id, peer] : _knownPeers) {
+        if (id != _localPeerId) { // Don't send to self
+            sendto(_socket, messageData, messageSize, 0, (sockaddr*)&peer.address, sizeof(peer.address));
+        }
+    }
 }
 
 void NetworkManager::processMainThreadCommands()

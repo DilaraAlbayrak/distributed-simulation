@@ -517,7 +517,8 @@ void D3DFramework::setScenario(std::unique_ptr<Scenario> scenario, int scenarioI
 
 	//unsigned int totalCores = std::thread::hardware_concurrency();
 	//unsigned int simThreadCount = (totalCores > 3) ? totalCores - 3 : 4; // Default to 4 if unsure
-	physicsManager.startThreads(1, 0.008f);
+	unsigned int simThreadCount = 1; // For now, we use a single thread for simulation
+	physicsManager.startThreads(simThreadCount, 0.008f);
 
 	_scenarioReady = true;
 

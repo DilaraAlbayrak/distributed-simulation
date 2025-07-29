@@ -152,7 +152,8 @@ struct ObjectUpdate FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_OBJECTID = 4,
     VT_POSITION = 6,
     VT_VELOCITY = 8,
-    VT_OWNER = 10
+    VT_SCALE = 10,
+    VT_OWNER = 12
   };
   int32_t objectId() const {
     return GetField<int32_t>(VT_OBJECTID, 0);
@@ -162,6 +163,9 @@ struct ObjectUpdate FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   }
   const NetworkSim::Vec3 *velocity() const {
     return GetPointer<const NetworkSim::Vec3 *>(VT_VELOCITY);
+  }
+  const NetworkSim::Vec3 *scale() const {
+    return GetPointer<const NetworkSim::Vec3 *>(VT_SCALE);
   }
   int32_t owner() const {
     return GetField<int32_t>(VT_OWNER, 0);
@@ -173,6 +177,8 @@ struct ObjectUpdate FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            verifier.VerifyTable(position()) &&
            VerifyOffset(verifier, VT_VELOCITY) &&
            verifier.VerifyTable(velocity()) &&
+           VerifyOffset(verifier, VT_SCALE) &&
+           verifier.VerifyTable(scale()) &&
            VerifyField<int32_t>(verifier, VT_OWNER, 4) &&
            verifier.EndTable();
   }
@@ -190,6 +196,9 @@ struct ObjectUpdateBuilder {
   }
   void add_velocity(::flatbuffers::Offset<NetworkSim::Vec3> velocity) {
     fbb_.AddOffset(ObjectUpdate::VT_VELOCITY, velocity);
+  }
+  void add_scale(::flatbuffers::Offset<NetworkSim::Vec3> scale) {
+    fbb_.AddOffset(ObjectUpdate::VT_SCALE, scale);
   }
   void add_owner(int32_t owner) {
     fbb_.AddElement<int32_t>(ObjectUpdate::VT_OWNER, owner, 0);
@@ -210,9 +219,11 @@ inline ::flatbuffers::Offset<ObjectUpdate> CreateObjectUpdate(
     int32_t objectId = 0,
     ::flatbuffers::Offset<NetworkSim::Vec3> position = 0,
     ::flatbuffers::Offset<NetworkSim::Vec3> velocity = 0,
+    ::flatbuffers::Offset<NetworkSim::Vec3> scale = 0,
     int32_t owner = 0) {
   ObjectUpdateBuilder builder_(_fbb);
   builder_.add_owner(owner);
+  builder_.add_scale(scale);
   builder_.add_velocity(velocity);
   builder_.add_position(position);
   builder_.add_objectId(objectId);

@@ -123,6 +123,17 @@ void PhysicsObject::setMass(float newMass)
     else { inverseMomentOfInertia = 0.0f; } 
 }
 
+void PhysicsObject::setNetworkState(const DirectX::XMFLOAT3& newPosition, const DirectX::XMFLOAT3& newVelocity, const DirectX::XMFLOAT3& newScale)
+{
+    if (_collider)
+    {
+        _collider->setPosition(newPosition);
+        _collider->setScale(newScale); 
+        _constantBuffer.World = _collider->updateWorldMatrix(); 
+    }
+    velocity = newVelocity;
+}
+
 void PhysicsObject::constrainToBounds()
 {
     if (isFixed || !_collider) return;

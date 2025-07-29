@@ -122,6 +122,7 @@ public:
 	const float getMass() const { return mass; }  
 	const DirectX::XMFLOAT3& getVelocity() const { return velocity; }
 	const DirectX::XMFLOAT3 getPosition() const;
+	const DirectX::XMFLOAT3 getScale() const { return _collider->getScale(); }
 
 	void constrainToBounds();
 
@@ -142,4 +143,5 @@ public:
 	int getPeerID() const { return _peerID; }
 	void setObjectId(int id) { _objectId = id; }
 	int getObjectId() const { return _objectId; }
+	void setNetworkState(const DirectX::XMFLOAT3& newPosition, const DirectX::XMFLOAT3& newVelocity, const DirectX::XMFLOAT3& newScale);
 };  

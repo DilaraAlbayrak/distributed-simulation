@@ -28,6 +28,10 @@ private:
 	std::vector<std::vector<CollisionPair>> _threadCollisionPairs;
 	std::vector<CollisionPair> _allCollisionPairs;
 
+	// for object lookup by ID
+	std::unordered_map<int, std::shared_ptr<PhysicsObject>> _objectIDMap;
+	mutable std::shared_mutex _mapMutex;
+
 	// --- Spatial Grid Members ---
 	std::vector<std::vector<int>> _grid;
 	std::vector<std::mutex> _gridMutexes;
@@ -86,4 +90,7 @@ public:
 	void stopThreads();
 
 	bool isRunning() const { return _running.load(); }
+
+	std::shared_ptr<PhysicsObject> getObjectById(int objectId);
+	void updateObjectState(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale);
 };

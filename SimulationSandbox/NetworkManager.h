@@ -48,6 +48,7 @@ private:
     void networkLoop();
     void handlePeerAnnounce(const char* data, int size, const sockaddr_in& senderAddr);
     void handleGlobalState(const char* data, int size);
+    void handleObjectUpdate(const char* data, int size);
 
 public:
     ~NetworkManager();
@@ -61,10 +62,10 @@ public:
     void stopNetworking();
 
     void processMainThreadCommands();
-    void sendObjectUpdate(int objectId, const DirectX::XMFLOAT3& position);
     void sendPeerAnnounce();
     void checkForLocalStateChangesAndBroadcast();
     void broadcastScenarioChange(int scenarioId);
+    void sendObjectUpdate(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale);
 
     int getLocalPeerId() const { return _localPeerId; }
     int getLocalColour() const { return _localColour; }
