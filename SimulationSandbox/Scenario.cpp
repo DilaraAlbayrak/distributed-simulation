@@ -471,26 +471,65 @@ float Scenario::randomFloat(float min, float max)
 
 void Scenario::applySharedGUI()
 {
-	ImGui::Begin("Scenario Controls");
-	ImGui::PushItemWidth(150);
-
-	int currentMethod = globals::integrationMethod.load();
-
-	if (ImGui::RadioButton("Semi-Implicit Euler", &currentMethod, 0))
+	// Check if the main menu bar is visible
+	if (ImGui::BeginMainMenuBar())
 	{
-		globals::integrationMethod = currentMethod;
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("RK4", &currentMethod, 1))
-	{
-		globals::integrationMethod = currentMethod;
-	}
-	ImGui::SameLine();
-	if (ImGui::RadioButton("Midpoint", &currentMethod, 2))
-	{
-		globals::integrationMethod = currentMethod;
-	}
+		// Create the "Integration" menu
+		if (ImGui::BeginMenu("Integration"))
+		{
+			// Get the current integration method
+			int currentMethod = globals::integrationMethod.load();
 
-	ImGui::PopItemWidth();
-	ImGui::End();
+			// Menu item for Semi-Implicit Euler
+			if (ImGui::MenuItem("Semi-Implicit Euler", nullptr, currentMethod == 0))
+			{
+				globals::integrationMethod = 0;
+			}
+			// Menu item for RK4
+			if (ImGui::MenuItem("RK4", nullptr, currentMethod == 1))
+			{
+				globals::integrationMethod = 1;
+			}
+			// Menu item for Midpoint
+			if (ImGui::MenuItem("Midpoint", nullptr, currentMethod == 2))
+			{
+				globals::integrationMethod = 2;
+			}
+
+			ImGui::EndMenu();
+		}
+
+		const char* buttonLabel = globals::isPaused ? "Continue" : "Pause";
+
+		// Create the button and check if it's clicked
+		if (ImGui::Button(buttonLabel))
+		{
+			// If clicked, toggle the boolean state
+			globals::isPaused = !globals::isPaused;
+		}
+
+		buttonLabel = globals::gravity.y < 0.0f ? "Reverse" : "Regular";
+
+		// Create the button and check if it's clicked
+		if (ImGui::Button(buttonLabel))
+		{
+			// If clicked, toggle the boolean state
+			globals::gravity = {
+				globals::gravity.x,
+				globals::gravity.y * -1.0f,
+				globals::gravity.z
+			};
+		}
+
+		buttonLabel = globals::gravityEnabled == 0 ? "Graity ON" : "Gravity OFF";
+
+		// Create the button and check if it's clicked
+		if (ImGui::Button(buttonLabel))
+		{
+			// If clicked, toggle the boolean state
+			globals::gravityEnabled = (globals::gravityEnabled == 0) ? 1 : 0;
+		}
+
+		ImGui::EndMainMenuBar();
+	}
 }

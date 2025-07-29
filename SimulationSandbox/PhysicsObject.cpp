@@ -192,9 +192,10 @@ void PhysicsObject::Update(float deltaTime)
 
    // previousPosition = _collider->getPosition();
 
-    acceleration = {globals::gravity.x * inverseMass,
-                    globals::gravity.y * inverseMass,
-                    globals::gravity.z * inverseMass };
+	int gravityEnabled = globals::gravityEnabled.load();
+    acceleration = {globals::gravity.x * gravityEnabled * inverseMass,
+                    globals::gravity.y * gravityEnabled* inverseMass,
+                    globals::gravity.z * gravityEnabled* inverseMass };
 
 	int currentMethod = globals::integrationMethod.load();
 

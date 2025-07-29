@@ -11,8 +11,8 @@ using namespace DirectX;
 
 #define COMPILE_CSO
 
-constexpr UINT _windowWidth = 800;
-constexpr UINT _windowHeight = 600;
+constexpr UINT _windowWidth = 1000;
+constexpr UINT _windowHeight = 750;
 
 //--------------------------------------------------------------------------------------
 // Structures
@@ -38,7 +38,7 @@ struct Camera
 	XMVECTOR up;
 	XMMATRIX view = {};
 	XMMATRIX projection = {};
-	float radius = 6.2f;
+	float radius = 7.0f;
 	float zoom = 1.0f; // Default zoom level
 	XMFLOAT2 zoomLimits = { 0.1f, 4.0f };
 
@@ -72,7 +72,7 @@ struct Camera
 		float z = radius * cos(yaw) * cos(pitch);
 		//float y = 0.0f;
 		eye = XMVectorSet(x, y, z, 0.0f);
-		at = XMVectorZero();
+		at = XMVectorZero();// +XMVectorSet(-2.0f, 0.0f, 0.0f, 0.0f);
 		up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
 		view = XMMatrixLookAtLH(eye, at, up);

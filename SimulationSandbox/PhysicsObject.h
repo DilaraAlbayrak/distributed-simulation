@@ -6,7 +6,7 @@
 #include <shared_mutex>
 #include <atomic>
 
-using globals::gravity;
+using namespace globals;
 
 enum class IntegrationMethod  
 {  
