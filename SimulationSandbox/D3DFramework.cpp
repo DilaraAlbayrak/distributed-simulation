@@ -4,6 +4,7 @@
 #include "Resource.h"
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
+#include <chrono>
 
 #include "Scenario1.h"
 #include "Scenario2.h"
@@ -13,6 +14,7 @@
 #include "TestScenario1.h"
 #include "TestScenario2.h"
 #include "TestScenario3.h"
+#include "TestScenario4.h"
 
 //#include "NetworkManager.h" // didn't like it but had to
 
@@ -29,8 +31,13 @@ LRESULT CALLBACK D3DFramework::wndProc(HWND hWnd, UINT message, WPARAM wParam, L
 	if (ImGui_ImplWin32_WndProcHandler(hWnd, message, wParam, lParam))
 		return true;
 
+	ImGuiIO& io = ImGui::GetIO();
+
 	switch (message) {
 	case WM_LBUTTONDOWN:
+		if (io.WantCaptureMouse)
+			break;
+
 		_instance->_isMouseDown = true;
 		GetCursorPos(&_instance->_lastMousePos);
 		break;
@@ -38,11 +45,14 @@ LRESULT CALLBACK D3DFramework::wndProc(HWND hWnd, UINT message, WPARAM wParam, L
 		_instance->_isMouseDown = false;
 		break;
 	case WM_MOUSEMOVE:
+		if (io.WantCaptureMouse)
+			break;
+
 		if (_instance->_isMouseDown)
 		{
 			POINT currentMousePos;
 			GetCursorPos(&currentMousePos);
-			
+
 			float dx = (currentMousePos.x - _instance->_lastMousePos.x) * _instance->_sensitivity;
 			float dy = (currentMousePos.y - _instance->_lastMousePos.y) * _instance->_sensitivity;
 
@@ -52,7 +62,7 @@ LRESULT CALLBACK D3DFramework::wndProc(HWND hWnd, UINT message, WPARAM wParam, L
 			float epsilon = 0.01f;
 			if (_instance->_pitch > XM_PIDIV2 - epsilon) _instance->_pitch = XM_PIDIV2 - epsilon;
 			if (_instance->_pitch < -XM_PIDIV2 + epsilon) _instance->_pitch = -XM_PIDIV2 + epsilon;
-			
+
 			_instance->_camera.rotate(_instance->_yaw, _instance->_pitch);
 
 			_instance->_lastMousePos = currentMousePos;
@@ -115,7 +125,17 @@ HRESULT D3DFramework::initWindow(HINSTANCE hInstance, int nCmdShow) {
 	_hInst = hInstance;
 	RECT rc = { 0, 0, _windowWidth, _windowHeight };
 	AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
-	_hWnd = CreateWindow(L"Starter Template", L"Networked AntiGravity Chamber",
+
+	auto& networkManager = NetworkManager::getInstance();
+	networkManager.startNetworking();
+
+	int peerid = networkManager.getLocalPeerId();
+	// Base title text
+	std::wstring windowTitle = L"Networked AntiGravity Chamber - PEER: ";
+	// Append the integer to the title
+	windowTitle += std::to_wstring(peerid);
+
+	_hWnd = CreateWindow(L"Starter Template", windowTitle.c_str(),
 		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
 		CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top, nullptr, nullptr, hInstance,
 		nullptr);
@@ -342,13 +362,16 @@ void D3DFramework::renderImGui() {
 				setScenario(std::make_unique<Scenario5>(_pd3dDevice, _pImmediateContext), 5);
 			}
 			if (ImGui::MenuItem("Test Scenario 1", nullptr, false)) {
-				setScenario(std::make_unique<TestScenario1>(_pd3dDevice, _pImmediateContext), -1);
+				setScenario(std::make_unique<TestScenario1>(_pd3dDevice, _pImmediateContext), 6);
 			}
 			if (ImGui::MenuItem("Test Scenario 2", nullptr, false)) {
-				setScenario(std::make_unique<TestScenario2>(_pd3dDevice, _pImmediateContext), -2);
+				setScenario(std::make_unique<TestScenario2>(_pd3dDevice, _pImmediateContext), 7);
 			}
 			if (ImGui::MenuItem("Test Scenario 3", nullptr, false)) {
-				setScenario(std::make_unique<TestScenario3>(_pd3dDevice, _pImmediateContext), -3);
+				setScenario(std::make_unique<TestScenario3>(_pd3dDevice, _pImmediateContext), 8);
+			}
+			if (ImGui::MenuItem("Test Scenario 4", nullptr, false)) {
+				setScenario(std::make_unique<TestScenario4>(_pd3dDevice, _pImmediateContext), 9);
 			}
 			ImGui::EndMenu();
 		}
@@ -358,10 +381,10 @@ void D3DFramework::renderImGui() {
 	if (_scenario)
 	//if (false)
 	{
-		ImGui::Begin("Statistics");
+		/*ImGui::Begin("Statistics");
 		ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
 		ImGui::Text("dt: %.4f", deltaTime);
-		ImGui::End();
+		ImGui::End();*/
 
 		if (ImGui::BeginMainMenuBar()) {
 			if (ImGui::BeginMenu("Camera")) {
@@ -373,28 +396,28 @@ void D3DFramework::renderImGui() {
 			ImGui::EndMainMenuBar();
 		}
 
-		static int selectedTimeCoefIndex = 2;
-		static int selectedTimestepIndex = 1;
+		//static int selectedTimeCoefIndex = 2;
+		//static int selectedTimestepIndex = 1;
 
-		ImGui::Begin("Scene Controls");
-		ImGui::PushItemWidth(100);
-		if (ImGui::SliderInt("Time coefficient:", &selectedTimeCoefIndex, 0, 3, ""))
-		{
-			// Ensure the index stays within the range of the array
-			selectedTimeCoefIndex = (selectedTimeCoefIndex < 0) ? 0 : (selectedTimeCoefIndex > 3) ? 3 : selectedTimeCoefIndex;
-			deltaTimeFactor = deltaTimeFactors[selectedTimeCoefIndex];
-		}
-		if (ImGui::SliderInt("Fixed timestep:", &selectedTimestepIndex, 0, 3, ""))
-		{
-			// Ensure the index stays within the range of the array
-			selectedTimestepIndex = (selectedTimestepIndex < 0) ? 0 : (selectedTimestepIndex > 3) ? 3 : selectedTimestepIndex;
-			fixedTimestep = fixedTimesteps[selectedTimestepIndex] * deltaTimeFactor;
-			numMaxStep = maxSteps[selectedTimestepIndex];
-		}
-		ImGui::SameLine();
-		ImGui::Text("%.3f", fixedTimestep);
-		ImGui::PopItemWidth();
-		ImGui::End();
+		//ImGui::Begin("Scene Controls");
+		//ImGui::PushItemWidth(100);
+		//if (ImGui::SliderInt("Time coefficient:", &selectedTimeCoefIndex, 0, 3, ""))
+		//{
+		//	// Ensure the index stays within the range of the array
+		//	selectedTimeCoefIndex = (selectedTimeCoefIndex < 0) ? 0 : (selectedTimeCoefIndex > 3) ? 3 : selectedTimeCoefIndex;
+		//	deltaTimeFactor = deltaTimeFactors[selectedTimeCoefIndex];
+		//}
+		//if (ImGui::SliderInt("Fixed timestep:", &selectedTimestepIndex, 0, 3, ""))
+		//{
+		//	// Ensure the index stays within the range of the array
+		//	selectedTimestepIndex = (selectedTimestepIndex < 0) ? 0 : (selectedTimestepIndex > 3) ? 3 : selectedTimestepIndex;
+		//	fixedTimestep = fixedTimesteps[selectedTimestepIndex] * deltaTimeFactor;
+		//	numMaxStep = maxSteps[selectedTimestepIndex];
+		//}
+		//ImGui::SameLine();
+		//ImGui::Text("%.3f", fixedTimestep);
+		//ImGui::PopItemWidth();
+		//ImGui::End();
 
 		_scenario->ImGuiMainMenu();
 	}
@@ -441,6 +464,7 @@ D3DFramework::~D3DFramework()
 void D3DFramework::render()
 {
 	static float currentTime = 0.0f;
+	static auto lastFrameTime = std::chrono::high_resolution_clock::now();
 
 	if (_driverType == D3D_DRIVER_TYPE_REFERENCE)
 	{
@@ -488,6 +512,23 @@ void D3DFramework::render()
 
 	renderImGui();
 	_swapChain->Present(0, 0);
+
+	auto now = std::chrono::high_resolution_clock::now();
+	float elapsedMs = std::chrono::duration<float, std::milli>(now - lastFrameTime).count();
+	if (elapsedMs > 0.0f) {
+		float actualHz = 1000.0f / elapsedMs;
+		globals::actualGfxFrequencyHz.store(actualHz);
+	}
+	lastFrameTime = now;
+
+	float targetHz = globals::targetGfxFrequencyHz.load();
+	if (targetHz > 0.0f) {
+		float targetMs = 1000.0f / targetHz;
+		float remainingMs = targetMs - elapsedMs;
+		if (remainingMs > 0.0f) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(remainingMs)));
+		}
+	}
 }
 
 #include "NetworkManager.h"
@@ -499,26 +540,35 @@ void D3DFramework::setScenario(std::unique_ptr<Scenario> scenario, int scenarioI
 	auto& physicsManager = PhysicsManager::getInstance();
 	auto& networkManager = NetworkManager::getInstance();
 
+	// Stop all simulation threads before touching objects
 	if (physicsManager.isRunning())
+	{
 		physicsManager.stopThreads();
+		physicsManager.clearObjects();
+	}
 
+	// Unload previous scenario
 	if (_scenario)
 		_scenario->onUnload();
 
+	// Move in new scenario
 	_scenario = std::move(scenario);
 	_currentScenarioId = scenarioId;
 
+	// 5. If scenario is null, broadcast and exit
 	if (!_scenario) {
-		networkManager.broadcastScenarioChange(0); // Broadcast that we have no scenario
+		networkManager.broadcastScenarioChange(0);
 		return;
 	}
 
+	// Load new scenario content (populate objects etc.)
 	_scenario->onLoad();
 
-	//unsigned int totalCores = std::thread::hardware_concurrency();
+	unsigned int totalCores = std::thread::hardware_concurrency();
 	//unsigned int simThreadCount = (totalCores > 3) ? totalCores - 3 : 4; // Default to 4 if unsure
 	unsigned int simThreadCount = 1;
-	physicsManager.startThreads(simThreadCount, 0.008f);
+
+	physicsManager.startThreads(simThreadCount, 1.0f / globals::targetSimFrequencyHz.load());
 
 	_scenarioReady = true;
 

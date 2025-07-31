@@ -129,6 +129,8 @@ void Scenario::updateInstanceBuffer()
 	// This avoids multiple reallocations as spheres are spawned.
 	instanceData.reserve(numMovingSpheres);
 
+	float renderTime = static_cast<float>(GetTickCount64()) / 1000.0f;
+
 	// The new access function gives us both lists.
 	// We only need the 'movingObjects' list here.
 	PhysicsManager::getInstance().accessAllObjects([&](
@@ -142,7 +144,27 @@ void Scenario::updateInstanceBuffer()
 				if (obj)
 				{
 					InstanceData data;
-					data.World = DirectX::XMMatrixTranspose(obj->getTransformMatrix());
+
+					if (!obj->isOwned())
+					{
+						DirectX::XMFLOAT3 smoothedPos = obj->getSmoothedPosition(renderTime);
+
+						Collider* collider = obj->getColliderPtr(); 
+						if (collider)
+						{
+							collider->setPosition(smoothedPos);
+							data.World = DirectX::XMMatrixTranspose(collider->updateWorldMatrix());
+						}
+						else
+						{
+							// Fallback: use a simple translation matrix
+							data.World = DirectX::XMMatrixTranslation(smoothedPos.x, smoothedPos.y, smoothedPos.z);
+						}
+					}
+					else
+					{
+						data.World = DirectX::XMMatrixTranspose(obj->getTransformMatrix());
+					}
 
 					const ConstantBuffer& cb = obj->getConstantBuffer();
 					data.LightColour = cb.LightColour;
@@ -183,7 +205,7 @@ void Scenario::unloadScenario()
 	_sphereIndexCountInstanced = 0;
 
 	// Clear all physics objects from the central PhysicsManager.
-	PhysicsManager::getInstance().clearObjects();
+	//PhysicsManager::getInstance().clearObjects();
 
 	// Clear spawn data and any pending requests to ensure a clean state.
 	spawnData.clear();
@@ -322,11 +344,12 @@ void Scenario::processPendingSpawns()
 			false, 1.0f, Material::MAT1
 		);
 		int localPeerId = NetworkManager::getInstance().getLocalPeerId();
-		int objectId = (localPeerId << 24) | _nextObjectId++; // Combine local peer ID with a unique object ID, shift to ensure uniqueness across peers
-		sphere->setObjectId(_nextObjectId++);
-
 		_nextPeerId = _peerDist(_randGen);
+		int objectId = (_nextPeerId << 24) | _nextObjectId++; // Combine local peer ID with a unique object ID, shift to ensure uniqueness across peers
+		sphere->setObjectId(objectId);
+
 		sphere->setPeerID(_nextPeerId); // Assign a random peer ID for distributed scenarios
+		sphere->setIsOwned(localPeerId == _nextPeerId); // Set ownership based on peer ID
 		//sphere->setPeerID(localPeerId); // Assign a random peer ID for distributed scenarios
 		ConstantBuffer cb = sphere->getConstantBuffer();
 		cb.LightColour = peerColors[_nextPeerId];
@@ -346,7 +369,7 @@ void Scenario::spawnRoom()
 		{
 			auto wall = std::make_unique<PhysicsObject>(
 				std::make_unique<Plane>(position, rotation, DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f), normal),
-				true, 1.0f, Material::MAT4
+				true, 100.0f, Material::MAT4 // mass is 100
 			);
 
 			wall->LoadModel("shapes/plane.sjg");
@@ -499,26 +522,121 @@ void Scenario::applySharedGUI()
 			ImGui::EndMenu();
 		}
 
-		const char* buttonLabel = globals::isPaused ? "Continue" : "Pause";
+		bool stateChanged = false; // Flag to track if any distributed state was changed
 
-		// Create the button and check if it's clicked
-		if (ImGui::Button(buttonLabel))
+
+		if (ImGui::BeginMenu("Timing"))
 		{
-			// If clicked, toggle the boolean state
-			globals::isPaused = !globals::isPaused;
+			// Start a two-column table to place settings side-by-side.
+			if (ImGui::BeginTable("SettingsTable", 2, ImGuiTableFlags_BordersInnerV))
+			{
+				// --- Column 1: Global Settings ---
+				ImGui::TableNextColumn();
+				ImGui::Text("Global Settings (*)");
+				ImGui::Separator();
+
+				float simFreq = globals::targetSimFrequencyHz.load();
+				if (ImGui::SliderFloat("Sim Freq (Hz)", &simFreq, 1.0f, 1000.0f, "%.0f"))
+				{
+					globals::targetSimFrequencyHz.store(simFreq);
+					stateChanged = true;
+				}
+
+				float deltaTime = 1.0f / globals::targetSimFrequencyHz.load();
+				if (ImGui::DragFloat("Delta Time (s)", &deltaTime, 0.005f, 0.005f, 1.0f, "%.3f"))
+				{
+					if (deltaTime > 0.0f)
+					{
+						globals::targetSimFrequencyHz.store(1.0f / deltaTime);
+						stateChanged = true;
+					}
+				}
+
+				float netFreq = globals::targetNetFrequencyHz.load();
+				if (ImGui::SliderFloat("Net Freq (Hz)", &netFreq, 1.0f, 60.0f, "%.0f"))
+				{
+					globals::targetNetFrequencyHz.store(netFreq);
+					stateChanged = true;
+				}
+
+				// --- Column 2: Local Settings ---
+				ImGui::TableNextColumn();
+
+				ImGui::SetNextItemWidth(120.0f);
+				ImGui::Separator();
+
+				float gfxFreq = globals::targetGfxFrequencyHz.load();
+				if (ImGui::SliderFloat("Target GFX Freq (Hz)", &gfxFreq, 1.0f, 144.0f, "%.0f"))
+				{
+					globals::targetGfxFrequencyHz.store(gfxFreq);
+				}
+
+				ImGui::Text("Actual GFX: %.1f Hz", globals::actualGfxFrequencyHz.load());
+				ImGui::Text("Actual Sim: %.1f Hz", globals::actualSimFrequencyHz.load());
+				ImGui::Text("Actual Net: %.1f Hz", globals::actualNetFrequencyHz.load());
+				ImGui::Text("Num. moving objects: %d", numMovingSpheres);
+
+				ImGui::EndTable();
+			}
+
+			ImGui::EndMenu();
 		}
 
-		buttonLabel = globals::gravity.y < 0.0f ? "Reverse" : "Regular";
+		if (ImGui::BeginMenu("Material"))
+		{
+			// Start a two-column table to place settings side-by-side.
+			//if (ImGui::BeginTable("MaterialsTable", 1, ImGuiTableFlags_BordersInnerV))
+			{
+				float elasticity = globals::elasticity.load();
+				if (ImGui::SliderFloat("Elasticiy", &elasticity, 0.0f, 1.0f, "%.1f"))
+				{
+					globals::elasticity.store(elasticity);
+					//PhysicsObject::setRestitution(elasticity);
+					stateChanged = true;
+				}
+			}
+
+			float staticFriction = globals::staticFriction.load();
+			if (ImGui::SliderFloat("Static F.", &staticFriction, 0.0f, 1.0f, "%.1f"))
+			{
+				globals::staticFriction.store(staticFriction);
+				//PhysicsObject::setStaticFriction(staticFriction);
+				stateChanged = true;
+			}
+
+			float dynamicFriction = globals::dynamicFriction.load();
+			if (ImGui::SliderFloat("Dynamic F.", &dynamicFriction, 0.0f, 1.0f, "%.1f"))
+			{
+				globals::dynamicFriction.store(dynamicFriction);
+				//PhysicsObject::setDynamicFriction(dynamicFriction);
+				stateChanged = true;
+			}
+
+			ImGui::EndMenu();
+		}
+
+		const char* buttonLabel = globals::isPaused ? "Continue" : "Pause";
+
+		bool isPaused = globals::isPaused.load();
 
 		// Create the button and check if it's clicked
 		if (ImGui::Button(buttonLabel))
 		{
 			// If clicked, toggle the boolean state
-			globals::gravity = {
-				globals::gravity.x,
-				globals::gravity.y * -1.0f,
-				globals::gravity.z
-			};
+			globals::isPaused.store(!isPaused);
+			stateChanged = true;
+		}
+
+		float gravityY = globals::gravityY.load();
+		buttonLabel = gravityY < 0.0f ? "Reverse" : "Regular";
+
+		// Create the button and check if it's clicked
+		if (ImGui::Button(buttonLabel))
+		{
+			// If clicked, toggle the boolean state
+			gravityY *= -1.0f; // Reverse the gravity direction
+			globals::gravityY.store(gravityY);
+			stateChanged = true;
 		}
 
 		buttonLabel = globals::gravityEnabled == 0 ? "Graity ON" : "Gravity OFF";
@@ -528,8 +646,15 @@ void Scenario::applySharedGUI()
 		{
 			// If clicked, toggle the boolean state
 			globals::gravityEnabled = (globals::gravityEnabled == 0) ? 1 : 0;
+			stateChanged = true;
+		}
+
+		if (stateChanged)
+		{
+			NetworkManager::getInstance().broadcastGlobalState();
 		}
 
 		ImGui::EndMainMenuBar();
+
 	}
 }

@@ -205,6 +205,7 @@
     <ClInclude Include="TestScenario1.h" />
     <ClInclude Include="TestScenario2.h" />
     <ClInclude Include="TestScenario3.h" />
+    <ClInclude Include="TestScenario4.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Capsule.cpp" />
@@ -247,6 +248,7 @@
     <ClCompile Include="TestScenario1.cpp" />
     <ClCompile Include="TestScenario2.cpp" />
     <ClCompile Include="TestScenario3.cpp" />
+    <ClCompile Include="TestScenario4.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="Simulation.ico" />

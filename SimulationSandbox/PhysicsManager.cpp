@@ -19,7 +19,7 @@ PhysicsManager& PhysicsManager::getInstance()
 
 PhysicsManager::~PhysicsManager()
 {
-	if (_running)
+	if (_running.load())
 	{
 		stopThreads();
 	}
@@ -71,6 +71,7 @@ void PhysicsManager::clearObjects()
 	}
 	if (!_threadCollisionPairs.empty()) { for (auto& pair_list : _threadCollisionPairs) pair_list.clear(); }
 
+	_threadCollisionPairs.clear();
 	_allCollisionPairs.clear();
 	_allMovingPairs.clear();
 	_allFixedPairs.clear();
@@ -112,6 +113,12 @@ int PhysicsManager::getGridIndex(const DirectX::XMFLOAT3& position) const
 
 void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 {
+	//if (globals::isPaused) return; // Skip simulation if paused
+
+	static std::chrono::high_resolution_clock::time_point _lastSimTime;
+
+	auto frameStart = std::chrono::high_resolution_clock::now();
+
 	// --- Phase 0: Create a local, thread-safe copy of the data ---
 	// By copying the shared_ptrs, we ensure that even if the main thread
 	// modifies the original vectors, our pointers for this simulation step remain valid.
@@ -176,7 +183,8 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 		PhysicsObject* objA = localMovingObjects[i].get();
 		if (!objA) continue;
 
-		DirectX::XMFLOAT3 posA = objA->getPosition();
+ 		//DirectX::XMFLOAT3 posA = objA->getPosition();
+		DirectX::XMFLOAT3 posA = objA->isOwned() ? objA->getPosition() : objA->getSmoothedPosition(dt);
 		int centerCellX = static_cast<int>((posA.x - _worldMin.x) / _cellSize);
 		int centerCellY = static_cast<int>((posA.y - _worldMin.y) / _cellSize);
 		int centerCellZ = static_cast<int>((posA.z - _worldMin.z) / _cellSize);
@@ -234,14 +242,22 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 
 		for (const auto& pair : _allCollisionPairs)
 		{
-			// The raw pointers are guaranteed to be valid because the local shared_ptr vectors
-			// in all threads are still in scope, keeping the underlying objects alive.
 			DirectX::XMFLOAT3 normal;
 			float penetration = 0.0f;
-			// Re-check collision in case an object's state was changed by an earlier resolution in this frame.
+
 			if (pair.objA->checkCollision(*pair.objB, normal, penetration))
 			{
-				pair.objA->resolveCollision(*pair.objB, normal, penetration);
+				//OutputDebugString(L"[DEBUG] COLLISION \n");
+
+				if (pair.objA->isOwned())
+					pair.objA->resolveCollision(*pair.objB, normal, penetration);
+
+				if (pair.objB->isOwned())
+				{
+					// Invert the normal for symmetric resolution
+					DirectX::XMFLOAT3 inverseNormal = { -normal.x, -normal.y, -normal.z };
+					pair.objB->resolveCollision(*pair.objA, inverseNormal, penetration);
+				}
 			}
 		}
 	}
@@ -258,37 +274,53 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 			/*obj->Update(dt);
 			obj->constrainToBounds();*/
 			if (obj->getPeerID() == localPeerId)
+			//if (!globals::isPaused.load() && obj->getPeerID() == localPeerId)
 			{
 				// We own this object, so we calculate its physics.
 				obj->Update(dt);
 				obj->constrainToBounds();
 
 				// After updating, broadcast the new state to other peers.
-				networkManager.sendObjectUpdate(obj->getObjectId(), obj->getPosition(), obj->getVelocity(), obj->getScale());
+				networkManager.sendObjectUpdate(obj->getObjectId(), obj->getPosition(), obj->getRotation(), obj->getVelocity(), obj->getScale());
 			}
 		}
+	}
+
+	if (threadIndex == 0) {
+		auto now = std::chrono::high_resolution_clock::now();
+		float elapsedMs = std::chrono::duration<float, std::milli>(now - _lastSimTime).count();
+
+		if (_lastSimTime.time_since_epoch().count() != 0 && elapsedMs > 0.0f) {
+			float actualHz = 1000.0f / elapsedMs;
+			globals::actualSimFrequencyHz.store(actualHz);
+		}
+		_lastSimTime = now;
 	}
 }
 
 void PhysicsManager::startThreads(int numThreads, float dt)
 {
-	if (_running) return;
+	if (_running.load()) return;
 
-	stopThreads();
-
-	float worldExtent = globals::AXIS_LENGTH;
-	initGrid(0.5f, { -worldExtent, -worldExtent, -worldExtent }, { worldExtent, -worldExtent, worldExtent });
+	// stopThreads();
 
 	// Clean up inconsistent state from previous attempts
-	_threadMovingPairs.clear();
-	_threadFixedPairs.clear();
 	_threadCollisionPairs.resize(numThreads);
-	_allMovingPairs.clear();
-	_allFixedPairs.clear();
-	_allCollisionPairs.reserve(10000 * 5);
+	_threadMovingPairs.resize(numThreads);
+	_threadFixedPairs.resize(numThreads);
+
+	_allCollisionPairs.clear();
+
+	_threadCollisionPairs.resize(numThreads);
+	int maxNumObjects = 10000; // 10k is fixed
+	_allCollisionPairs.reserve(maxNumObjects * 5); // 10k is fixed
 
 	_running = true;
 	_threads.reserve(numThreads);
+
+	float worldExtent = globals::AXIS_LENGTH;
+	initGrid(0.5f, { -worldExtent, -worldExtent, -worldExtent }, { worldExtent, worldExtent, worldExtent });
+
 	if (numThreads > 0)
 	{
 		_syncBarrier = std::make_unique<std::barrier<>>(numThreads);
@@ -304,9 +336,10 @@ void PhysicsManager::startThreads(int numThreads, float dt)
 				OutputDebugString(L"[WARNING] Failed to set thread affinity.\n");
 			}
 
-			// --- THIS IS THE CORRECTED FIXED-FREQUENCY LOOP ---
 			while (_running)
 			{
+				if (globals::isPaused) continue;
+
 				auto startTime = std::chrono::high_resolution_clock::now();
 
 				simulationLoop(i, numThreads, dt);
@@ -329,7 +362,7 @@ void PhysicsManager::startThreads(int numThreads, float dt)
 
 void PhysicsManager::stopThreads()
 {
-	if (!_running) return;
+	if (!_running.load()) return;
 
 	{
 		std::lock_guard<std::mutex> lock(_runMutex);
@@ -357,10 +390,10 @@ std::shared_ptr<PhysicsObject> PhysicsManager::getObjectById(int objectId)
 	return nullptr;
 }
 
-void PhysicsManager::updateObjectState(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale)
+void PhysicsManager::updateObjectState(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& rotation, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale)
 {
 	auto obj = getObjectById(objectId);
 	if (obj) {
-		obj->setNetworkState(position, velocity, scale);
+		obj->setNetworkState(position, rotation, velocity, scale);
 	}
 }

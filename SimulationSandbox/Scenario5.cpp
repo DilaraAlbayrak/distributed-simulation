@@ -12,7 +12,7 @@ void Scenario5::setupFixedObjects()
 				DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
 				scale),
 			true, // isFixed
-			1.0f, // mass
+			50.0f, // mass
 			Material::MAT2 // material
 		);
 

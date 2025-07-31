@@ -102,6 +102,9 @@
     <ClCompile Include="PhysicsManager.cpp">
       <Filter>Physics</Filter>
     </ClCompile>
+    <ClCompile Include="TestScenario4.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Resource.h" />
@@ -173,6 +176,9 @@
     </ClInclude>
     <ClInclude Include="PhysicsManager.h">
       <Filter>Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="TestScenario4.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="network_messages_generated.h">
       <Filter>Network</Filter>

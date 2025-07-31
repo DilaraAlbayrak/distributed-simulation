@@ -21,6 +21,9 @@ struct Vec3Builder;
 struct ObjectUpdate;
 struct ObjectUpdateBuilder;
 
+struct ScenarioChange;
+struct ScenarioChangeBuilder;
+
 struct GlobalState;
 struct GlobalStateBuilder;
 
@@ -35,33 +38,36 @@ enum MessageData : uint8_t {
   MessageData_ObjectUpdate = 1,
   MessageData_GlobalState = 2,
   MessageData_PeerAnnounce = 3,
+  MessageData_ScenarioChange = 4,
   MessageData_MIN = MessageData_NONE,
-  MessageData_MAX = MessageData_PeerAnnounce
+  MessageData_MAX = MessageData_ScenarioChange
 };
 
-inline const MessageData (&EnumValuesMessageData())[4] {
+inline const MessageData (&EnumValuesMessageData())[5] {
   static const MessageData values[] = {
     MessageData_NONE,
     MessageData_ObjectUpdate,
     MessageData_GlobalState,
-    MessageData_PeerAnnounce
+    MessageData_PeerAnnounce,
+    MessageData_ScenarioChange
   };
   return values;
 }
 
 inline const char * const *EnumNamesMessageData() {
-  static const char * const names[5] = {
+  static const char * const names[6] = {
     "NONE",
     "ObjectUpdate",
     "GlobalState",
     "PeerAnnounce",
+    "ScenarioChange",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameMessageData(MessageData e) {
-  if (::flatbuffers::IsOutRange(e, MessageData_NONE, MessageData_PeerAnnounce)) return "";
+  if (::flatbuffers::IsOutRange(e, MessageData_NONE, MessageData_ScenarioChange)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesMessageData()[index];
 }
@@ -80,6 +86,10 @@ template<> struct MessageDataTraits<NetworkSim::GlobalState> {
 
 template<> struct MessageDataTraits<NetworkSim::PeerAnnounce> {
   static const MessageData enum_value = MessageData_PeerAnnounce;
+};
+
+template<> struct MessageDataTraits<NetworkSim::ScenarioChange> {
+  static const MessageData enum_value = MessageData_ScenarioChange;
 };
 
 bool VerifyMessageData(::flatbuffers::Verifier &verifier, const void *obj, MessageData type);
@@ -151,15 +161,19 @@ struct ObjectUpdate FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_OBJECTID = 4,
     VT_POSITION = 6,
-    VT_VELOCITY = 8,
-    VT_SCALE = 10,
-    VT_OWNER = 12
+    VT_ROTATION = 8,
+    VT_VELOCITY = 10,
+    VT_SCALE = 12,
+    VT_OWNER = 14
   };
   int32_t objectId() const {
     return GetField<int32_t>(VT_OBJECTID, 0);
   }
   const NetworkSim::Vec3 *position() const {
     return GetPointer<const NetworkSim::Vec3 *>(VT_POSITION);
+  }
+  const NetworkSim::Vec3 *rotation() const {
+    return GetPointer<const NetworkSim::Vec3 *>(VT_ROTATION);
   }
   const NetworkSim::Vec3 *velocity() const {
     return GetPointer<const NetworkSim::Vec3 *>(VT_VELOCITY);
@@ -175,6 +189,8 @@ struct ObjectUpdate FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            VerifyField<int32_t>(verifier, VT_OBJECTID, 4) &&
            VerifyOffset(verifier, VT_POSITION) &&
            verifier.VerifyTable(position()) &&
+           VerifyOffset(verifier, VT_ROTATION) &&
+           verifier.VerifyTable(rotation()) &&
            VerifyOffset(verifier, VT_VELOCITY) &&
            verifier.VerifyTable(velocity()) &&
            VerifyOffset(verifier, VT_SCALE) &&
@@ -193,6 +209,9 @@ struct ObjectUpdateBuilder {
   }
   void add_position(::flatbuffers::Offset<NetworkSim::Vec3> position) {
     fbb_.AddOffset(ObjectUpdate::VT_POSITION, position);
+  }
+  void add_rotation(::flatbuffers::Offset<NetworkSim::Vec3> rotation) {
+    fbb_.AddOffset(ObjectUpdate::VT_ROTATION, rotation);
   }
   void add_velocity(::flatbuffers::Offset<NetworkSim::Vec3> velocity) {
     fbb_.AddOffset(ObjectUpdate::VT_VELOCITY, velocity);
@@ -218,6 +237,7 @@ inline ::flatbuffers::Offset<ObjectUpdate> CreateObjectUpdate(
     ::flatbuffers::FlatBufferBuilder &_fbb,
     int32_t objectId = 0,
     ::flatbuffers::Offset<NetworkSim::Vec3> position = 0,
+    ::flatbuffers::Offset<NetworkSim::Vec3> rotation = 0,
     ::flatbuffers::Offset<NetworkSim::Vec3> velocity = 0,
     ::flatbuffers::Offset<NetworkSim::Vec3> scale = 0,
     int32_t owner = 0) {
@@ -225,42 +245,99 @@ inline ::flatbuffers::Offset<ObjectUpdate> CreateObjectUpdate(
   builder_.add_owner(owner);
   builder_.add_scale(scale);
   builder_.add_velocity(velocity);
+  builder_.add_rotation(rotation);
   builder_.add_position(position);
   builder_.add_objectId(objectId);
+  return builder_.Finish();
+}
+
+struct ScenarioChange FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ScenarioChangeBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_SCENARIOID = 4
+  };
+  int32_t scenarioId() const {
+    return GetField<int32_t>(VT_SCENARIOID, -1);
+  }
+  bool Verify(::flatbuffers::Verifier &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<int32_t>(verifier, VT_SCENARIOID, 4) &&
+           verifier.EndTable();
+  }
+};
+
+struct ScenarioChangeBuilder {
+  typedef ScenarioChange Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_scenarioId(int32_t scenarioId) {
+    fbb_.AddElement<int32_t>(ScenarioChange::VT_SCENARIOID, scenarioId, -1);
+  }
+  explicit ScenarioChangeBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ScenarioChange> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ScenarioChange>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ScenarioChange> CreateScenarioChange(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    int32_t scenarioId = -1) {
+  ScenarioChangeBuilder builder_(_fbb);
+  builder_.add_scenarioId(scenarioId);
   return builder_.Finish();
 }
 
 struct GlobalState FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef GlobalStateBuilder Builder;
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
-    VT_TIMESTEP = 4,
-    VT_GRAVITYON = 6,
-    VT_REVERSEGRAVITY = 8,
-    VT_INTEGRATIONMETHOD = 10,
-    VT_SCENARIOID = 12
+    VT_IS_PAUSED = 4,
+    VT_GRAVITY_ENABLED = 6,
+    VT_GRAVITY_Y = 8,
+    VT_ELASTICITY = 10,
+    VT_STATICFRICTION = 12,
+    VT_DYNAMICFRICTION = 14,
+    VT_TARGET_SIM_FREQ = 16,
+    VT_TARGET_NET_FREQ = 18
   };
-  float timestep() const {
-    return GetField<float>(VT_TIMESTEP, 0.0f);
+  bool is_paused() const {
+    return GetField<uint8_t>(VT_IS_PAUSED, 0) != 0;
   }
-  bool gravityOn() const {
-    return GetField<uint8_t>(VT_GRAVITYON, 0) != 0;
+  int32_t gravity_enabled() const {
+    return GetField<int32_t>(VT_GRAVITY_ENABLED, 0);
   }
-  bool reverseGravity() const {
-    return GetField<uint8_t>(VT_REVERSEGRAVITY, 0) != 0;
+  float gravity_y() const {
+    return GetField<float>(VT_GRAVITY_Y, 0.0f);
   }
-  int32_t integrationMethod() const {
-    return GetField<int32_t>(VT_INTEGRATIONMETHOD, 0);
+  float elasticity() const {
+    return GetField<float>(VT_ELASTICITY, 0.0f);
   }
-  int32_t scenarioId() const {
-    return GetField<int32_t>(VT_SCENARIOID, -1);
+  float staticFriction() const {
+    return GetField<float>(VT_STATICFRICTION, 0.0f);
+  }
+  float dynamicFriction() const {
+    return GetField<float>(VT_DYNAMICFRICTION, 0.0f);
+  }
+  float target_sim_freq() const {
+    return GetField<float>(VT_TARGET_SIM_FREQ, 0.0f);
+  }
+  float target_net_freq() const {
+    return GetField<float>(VT_TARGET_NET_FREQ, 0.0f);
   }
   bool Verify(::flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<float>(verifier, VT_TIMESTEP, 4) &&
-           VerifyField<uint8_t>(verifier, VT_GRAVITYON, 1) &&
-           VerifyField<uint8_t>(verifier, VT_REVERSEGRAVITY, 1) &&
-           VerifyField<int32_t>(verifier, VT_INTEGRATIONMETHOD, 4) &&
-           VerifyField<int32_t>(verifier, VT_SCENARIOID, 4) &&
+           VerifyField<uint8_t>(verifier, VT_IS_PAUSED, 1) &&
+           VerifyField<int32_t>(verifier, VT_GRAVITY_ENABLED, 4) &&
+           VerifyField<float>(verifier, VT_GRAVITY_Y, 4) &&
+           VerifyField<float>(verifier, VT_ELASTICITY, 4) &&
+           VerifyField<float>(verifier, VT_STATICFRICTION, 4) &&
+           VerifyField<float>(verifier, VT_DYNAMICFRICTION, 4) &&
+           VerifyField<float>(verifier, VT_TARGET_SIM_FREQ, 4) &&
+           VerifyField<float>(verifier, VT_TARGET_NET_FREQ, 4) &&
            verifier.EndTable();
   }
 };
@@ -269,20 +346,29 @@ struct GlobalStateBuilder {
   typedef GlobalState Table;
   ::flatbuffers::FlatBufferBuilder &fbb_;
   ::flatbuffers::uoffset_t start_;
-  void add_timestep(float timestep) {
-    fbb_.AddElement<float>(GlobalState::VT_TIMESTEP, timestep, 0.0f);
+  void add_is_paused(bool is_paused) {
+    fbb_.AddElement<uint8_t>(GlobalState::VT_IS_PAUSED, static_cast<uint8_t>(is_paused), 0);
   }
-  void add_gravityOn(bool gravityOn) {
-    fbb_.AddElement<uint8_t>(GlobalState::VT_GRAVITYON, static_cast<uint8_t>(gravityOn), 0);
+  void add_gravity_enabled(int32_t gravity_enabled) {
+    fbb_.AddElement<int32_t>(GlobalState::VT_GRAVITY_ENABLED, gravity_enabled, 0);
   }
-  void add_reverseGravity(bool reverseGravity) {
-    fbb_.AddElement<uint8_t>(GlobalState::VT_REVERSEGRAVITY, static_cast<uint8_t>(reverseGravity), 0);
+  void add_gravity_y(float gravity_y) {
+    fbb_.AddElement<float>(GlobalState::VT_GRAVITY_Y, gravity_y, 0.0f);
   }
-  void add_integrationMethod(int32_t integrationMethod) {
-    fbb_.AddElement<int32_t>(GlobalState::VT_INTEGRATIONMETHOD, integrationMethod, 0);
+  void add_elasticity(float elasticity) {
+    fbb_.AddElement<float>(GlobalState::VT_ELASTICITY, elasticity, 0.0f);
   }
-  void add_scenarioId(int32_t scenarioId) {
-    fbb_.AddElement<int32_t>(GlobalState::VT_SCENARIOID, scenarioId, -1);
+  void add_staticFriction(float staticFriction) {
+    fbb_.AddElement<float>(GlobalState::VT_STATICFRICTION, staticFriction, 0.0f);
+  }
+  void add_dynamicFriction(float dynamicFriction) {
+    fbb_.AddElement<float>(GlobalState::VT_DYNAMICFRICTION, dynamicFriction, 0.0f);
+  }
+  void add_target_sim_freq(float target_sim_freq) {
+    fbb_.AddElement<float>(GlobalState::VT_TARGET_SIM_FREQ, target_sim_freq, 0.0f);
+  }
+  void add_target_net_freq(float target_net_freq) {
+    fbb_.AddElement<float>(GlobalState::VT_TARGET_NET_FREQ, target_net_freq, 0.0f);
   }
   explicit GlobalStateBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
@@ -297,17 +383,23 @@ struct GlobalStateBuilder {
 
 inline ::flatbuffers::Offset<GlobalState> CreateGlobalState(
     ::flatbuffers::FlatBufferBuilder &_fbb,
-    float timestep = 0.0f,
-    bool gravityOn = false,
-    bool reverseGravity = false,
-    int32_t integrationMethod = 0,
-    int32_t scenarioId = -1) {
+    bool is_paused = false,
+    int32_t gravity_enabled = 0,
+    float gravity_y = 0.0f,
+    float elasticity = 0.0f,
+    float staticFriction = 0.0f,
+    float dynamicFriction = 0.0f,
+    float target_sim_freq = 0.0f,
+    float target_net_freq = 0.0f) {
   GlobalStateBuilder builder_(_fbb);
-  builder_.add_scenarioId(scenarioId);
-  builder_.add_integrationMethod(integrationMethod);
-  builder_.add_timestep(timestep);
-  builder_.add_reverseGravity(reverseGravity);
-  builder_.add_gravityOn(gravityOn);
+  builder_.add_target_net_freq(target_net_freq);
+  builder_.add_target_sim_freq(target_sim_freq);
+  builder_.add_dynamicFriction(dynamicFriction);
+  builder_.add_staticFriction(staticFriction);
+  builder_.add_elasticity(elasticity);
+  builder_.add_gravity_y(gravity_y);
+  builder_.add_gravity_enabled(gravity_enabled);
+  builder_.add_is_paused(is_paused);
   return builder_.Finish();
 }
 
@@ -388,6 +480,9 @@ struct Message FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const NetworkSim::PeerAnnounce *data_as_PeerAnnounce() const {
     return data_type() == NetworkSim::MessageData_PeerAnnounce ? static_cast<const NetworkSim::PeerAnnounce *>(data()) : nullptr;
   }
+  const NetworkSim::ScenarioChange *data_as_ScenarioChange() const {
+    return data_type() == NetworkSim::MessageData_ScenarioChange ? static_cast<const NetworkSim::ScenarioChange *>(data()) : nullptr;
+  }
   bool Verify(::flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint64_t>(verifier, VT_TIMESTAMP, 8) &&
@@ -408,6 +503,10 @@ template<> inline const NetworkSim::GlobalState *Message::data_as<NetworkSim::Gl
 
 template<> inline const NetworkSim::PeerAnnounce *Message::data_as<NetworkSim::PeerAnnounce>() const {
   return data_as_PeerAnnounce();
+}
+
+template<> inline const NetworkSim::ScenarioChange *Message::data_as<NetworkSim::ScenarioChange>() const {
+  return data_as_ScenarioChange();
 }
 
 struct MessageBuilder {
@@ -461,6 +560,10 @@ inline bool VerifyMessageData(::flatbuffers::Verifier &verifier, const void *obj
     }
     case MessageData_PeerAnnounce: {
       auto ptr = reinterpret_cast<const NetworkSim::PeerAnnounce *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case MessageData_ScenarioChange: {
+      auto ptr = reinterpret_cast<const NetworkSim::ScenarioChange *>(obj);
       return verifier.VerifyTable(ptr);
     }
     default: return true;

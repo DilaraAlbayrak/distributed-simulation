@@ -9,7 +9,7 @@ protected:
 public:
 	TestScenario1(const CComPtr <ID3D11Device>& pDevice, const CComPtr <ID3D11DeviceContext>& pContext) : Scenario(pDevice, pContext)
 	{
-		/*setNumMovingSpheres(1);
+	/*	setNumMovingSpheres(1);
 		setMinRadius(0.5f);
 		setMaxRadius(0.7f);*/
 	}

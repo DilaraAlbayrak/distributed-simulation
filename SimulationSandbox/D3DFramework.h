@@ -11,8 +11,10 @@ using namespace DirectX;
 
 #define COMPILE_CSO
 
-constexpr UINT _windowWidth = 1000;
-constexpr UINT _windowHeight = 750;
+//constexpr UINT _windowWidth = 1000;
+//constexpr UINT _windowHeight = 750
+constexpr UINT _windowWidth = 600;
+constexpr UINT _windowHeight = 450;
 
 //--------------------------------------------------------------------------------------
 // Structures
@@ -38,7 +40,7 @@ struct Camera
 	XMVECTOR up;
 	XMMATRIX view = {};
 	XMMATRIX projection = {};
-	float radius = 7.0f;
+	float radius = 6.2f;
 	float zoom = 1.0f; // Default zoom level
 	XMFLOAT2 zoomLimits = { 0.1f, 4.0f };
 
@@ -72,7 +74,7 @@ struct Camera
 		float z = radius * cos(yaw) * cos(pitch);
 		//float y = 0.0f;
 		eye = XMVectorSet(x, y, z, 0.0f);
-		at = XMVectorZero();// +XMVectorSet(-2.0f, 0.0f, 0.0f, 0.0f);
+		at = XMVectorZero();
 		up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
 		view = XMMatrixLookAtLH(eye, at, up);
@@ -119,7 +121,7 @@ class D3DFramework final {
 
 	XMFLOAT4 _bgColour = { 0.54f, 0.75f, 0.77f, 1.0f };
 	float deltaTime = 0.0f;
-	const float deltaTimeFactors[4] = {0.25f, 0.5f, 1.0f, 2.0f};
+	const float deltaTimeFactors[4] = {0.0f, 0.5f, 1.0f, 2.0f};
 	float deltaTimeFactor = deltaTimeFactors[2];
 	static float time;
 	const float fixedTimesteps[4] = { 0.002f, 0.004f, 0.008f, 0.016f };

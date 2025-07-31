@@ -42,6 +42,10 @@ private:
     std::vector<std::function<void()>> _mainThreadCommandQueue;
     std::mutex _commandMutex;
 
+	// for frequency control
+    std::thread _netMonitorThread;
+    std::atomic<int> _netPacketCounter{ 0 };
+
     // Private Methods
     NetworkManager();
     bool setupSocket();
@@ -49,6 +53,8 @@ private:
     void handlePeerAnnounce(const char* data, int size, const sockaddr_in& senderAddr);
     void handleGlobalState(const char* data, int size);
     void handleObjectUpdate(const char* data, int size);
+
+    void monitorNetworkFrequency();
 
 public:
     ~NetworkManager();
@@ -63,9 +69,10 @@ public:
 
     void processMainThreadCommands();
     void sendPeerAnnounce();
-    void checkForLocalStateChangesAndBroadcast();
     void broadcastScenarioChange(int scenarioId);
-    void sendObjectUpdate(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale);
+    void broadcastGlobalState();
+    void sendObjectUpdate(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& rotation, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale);
+    void handleScenarioChange(const char* data, int size);
 
     int getLocalPeerId() const { return _localPeerId; }
     int getLocalColour() const { return _localColour; }

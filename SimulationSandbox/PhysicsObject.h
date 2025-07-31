@@ -6,8 +6,6 @@
 #include <shared_mutex>
 #include <atomic>
 
-using namespace globals;
-
 enum class IntegrationMethod  
 {  
 SEMI_IMPLICIT_EULER,  
@@ -30,6 +28,22 @@ static float elasticityLookup[5][5] = {
 	{ 0.45f, 0.35f, 0.75f, 0.30f, 0.45f },
 	{ 0.70f, 0.55f, 0.30f, 0.65f, 0.50f },
 	{ 0.30f, 0.40f, 0.45f, 0.50f, 0.35f }
+};
+
+static float staticFrictionLookup[5][5] = {
+	{0.8f, 0.6f, 0.5f, 0.7f, 0.5f},
+	{0.6f, 0.5f, 0.4f, 0.6f, 0.45f},
+	{0.5f, 0.4f, 0.9f, 0.5f, 0.55f},
+	{0.7f, 0.6f, 0.5f, 0.8f, 0.6f},
+	{0.5f, 0.45f, 0.55f, 0.6f, 0.4f}
+};
+
+static float dynamicFrictionLookup[5][5] = {
+	{0.6f, 0.45f, 0.35f, 0.55f, 0.3f},
+	{0.45f, 0.4f, 0.3f, 0.5f, 0.35f},
+	{0.35f, 0.3f, 0.7f, 0.4f, 0.4f},
+	{0.55f, 0.5f, 0.4f, 0.6f, 0.5f},
+	{0.3f, 0.35f, 0.4f, 0.5f, 0.25f}
 };
 
 struct ConstantBuffer  
@@ -60,6 +74,12 @@ private:
 	// for distributed
 	int _peerID = -1; // ID for peer-to-peer communication, if needed
 	int _objectId = -1; // Unique ID for this object, used in networking
+	bool _isOwned = false; // Flag to indicate if this object is owned by the local peer
+	// for rendering latencies
+	DirectX::XMFLOAT3 previousRenderingPosition = { 0.0f, globals::AXIS_LENGTH+1.0f, 0.0f };
+	DirectX::XMFLOAT3 currentRenderingPosition = { 0.0f, globals::AXIS_LENGTH + 1.0f, 0.0f };
+	float previousTimestamp;
+	float currentTimestamp;
 
 	bool isFixed = false;  
 	DirectX::XMFLOAT3 velocity = { 0.0f, 0.0f, 0.0f };  
@@ -115,6 +135,7 @@ public:
 
 	const Collider& getCollider() const { return *_collider; }  
 	Collider& getCollider() { return *_collider; }
+	Collider* getColliderPtr() const { return _collider.get(); } // safer than using get() directly
 	const std::vector<Vertex>& getVertices() const { return _vertices; }  
 	const std::vector<int>& getIndices() const { return _indices; }  
 	const DirectX::XMMATRIX& getTransformMatrix() const { return _constantBuffer.World; }  
@@ -123,6 +144,7 @@ public:
 	const DirectX::XMFLOAT3& getVelocity() const { return velocity; }
 	const DirectX::XMFLOAT3 getPosition() const;
 	const DirectX::XMFLOAT3 getScale() const { return _collider->getScale(); }
+	const DirectX::XMFLOAT3 getRotation() const;
 
 	void constrainToBounds();
 
@@ -143,5 +165,17 @@ public:
 	int getPeerID() const { return _peerID; }
 	void setObjectId(int id) { _objectId = id; }
 	int getObjectId() const { return _objectId; }
-	void setNetworkState(const DirectX::XMFLOAT3& newPosition, const DirectX::XMFLOAT3& newVelocity, const DirectX::XMFLOAT3& newScale);
+	void setIsOwned(bool owned) { _isOwned = owned; }
+	bool isOwned() const { return _isOwned; }
+	void setNetworkState(const DirectX::XMFLOAT3& newPosition, const DirectX::XMFLOAT3& newRotation, const DirectX::XMFLOAT3& newVelocity, const DirectX::XMFLOAT3& newScale);
+
+	// smooth rendering for distributed
+	DirectX::XMFLOAT3 getSmoothedPosition(float renderTime) const;
+	void setPreviousRenderingPosition(const DirectX::XMFLOAT3& pos) { previousRenderingPosition = pos; }
+	void setCurrentRenderingPosition(const DirectX::XMFLOAT3& pos) { currentRenderingPosition = pos; }
+	void setPreviousTimestamp(float t) { previousTimestamp = t; }
+	void setCurrentTimestamp(float t) { currentTimestamp = t; }
+
+	DirectX::XMFLOAT3 getCurrentRenderingPosition() const { return currentRenderingPosition; }
+	float getCurrentTimestamp() const { return currentTimestamp; }
 };  

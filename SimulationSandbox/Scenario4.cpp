@@ -20,7 +20,7 @@ void Scenario4::setupFixedObjects()
 					rotation,
 					scaleVec),
 				true, // isFixed
-				1.0f, // mass
+				50.0f, // mass
 				Material::MAT2 // material
 			);
 
@@ -69,7 +69,7 @@ void Scenario4::setupFixedObjects()
 					DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
 					DirectX::XMFLOAT3(scale, scale, scale)),
 				true, // fixed
-				1.0f, // mass
+				50.0f, // mass
 				Material::MAT2 // material
 			);
 			sphere->LoadModel("shapes/sphere.sjg");

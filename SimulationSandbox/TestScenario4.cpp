@@ -1,10 +1,8 @@
-#include "TestScenario3.h"
+#include "TestScenario4.h"
 #include <memory>
-#include "Capsule.h"
 #include "Sphere.h"
-#include "Cube.h"
 
-void TestScenario3::setupFixedObjects()
+void TestScenario4::setupFixedObjects()
 {
 	float radius = 0.4f; // Fixed radius for the capsule and spheres
 	float scale = radius * 2.0f;
@@ -14,41 +12,11 @@ void TestScenario3::setupFixedObjects()
 	float z = 0.0f;
 	//float z = randomFloat(-axisLength, axisLength);
 
-	auto fixedCapsule = std::make_unique<PhysicsObject>(
-		std::make_unique<Capsule>(
-			DirectX::XMFLOAT3(x, y, z),
-			DirectX::XMFLOAT3(90.0f, 45.0f, 0.0f),
-			DirectX::XMFLOAT3(scale, scale, scale)), true, 50.0f, Material::MAT3);
-	fixedCapsule->LoadModel("shapes/capsule.sjg");
-	ConstantBuffer cb = fixedCapsule->getConstantBuffer();
-	cb.LightColour = { x,1 - radius,y, 1.0f };
-	cb.DarkColour = cb.LightColour;
-	fixedCapsule->setConstantBuffer(cb);
-	addPhysicsObject(std::move(fixedCapsule));
-
-	scale = 1.5f;
-	auto cube = std::make_unique<PhysicsObject>(
-		std::make_unique<Cube>(
-			DirectX::XMFLOAT3(x, -globals::AXIS_LENGTH+scale/2.0f, z),
-			DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
-			DirectX::XMFLOAT3(scale, scale, scale)),
-		true, // isFixed
-		50.0f,
-		Material::MAT3 // material type
-	);
-
-	cube->LoadModel("shapes/cube.sjg");
-
-	cb = cube->getConstantBuffer();
-	cb.LightColour = { 1 - radius,1 - radius,radius, 1.0f };
-	cb.DarkColour = cb.LightColour;
-	cube->setConstantBuffer(cb);
-
-	addPhysicsObject(std::move(cube));
+	ConstantBuffer cb;
 
 	auto createFixedSphere = [&](float x, float y, float z, bool elevate = false)
 		{
-			float radius = 0.9f; 
+			float radius = 0.9f;
 			float scale = radius * 2.0f;
 
 			auto sphere = std::make_unique<PhysicsObject>(
@@ -72,12 +40,12 @@ void TestScenario3::setupFixedObjects()
 
 	//createFixedSphere(0.5f, -globals::AXIS_LENGTH, 0.5f, true);
 	createFixedSphere(-globals::AXIS_LENGTH, 0.0f, 0.5f);
-	createFixedSphere(globals::AXIS_LENGTH, 0.8f, -1.0f);
-	createFixedSphere(-0.8f, 0.5f, -globals::AXIS_LENGTH);
+	createFixedSphere(globals::AXIS_LENGTH, 0.0f, 0.5f);
+	//createFixedSphere(-0.8f, 0.5f, -globals::AXIS_LENGTH);
 
 	auto sphere = std::make_unique<PhysicsObject>(
 		std::make_unique<Sphere>(
-			DirectX::XMFLOAT3(x + 0.2f, 2.5f, z),
+			DirectX::XMFLOAT3(x + 1.3f, 2.5f, z),
 			DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
 			DirectX::XMFLOAT3(0.4f, 0.4f, 0.4f)), false, 1.0f, Material::MAT3);
 	sphere->setObjectId(0); // Set a unique ID for the sphere
@@ -88,9 +56,13 @@ void TestScenario3::setupFixedObjects()
 
 	sphere = std::make_unique<PhysicsObject>(
 		std::make_unique<Sphere>(
-			DirectX::XMFLOAT3(x - 0.2f, 2.5f, z),
+			DirectX::XMFLOAT3(x - 1.3f, 2.5f, z),
 			DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
-			DirectX::XMFLOAT3(0.4f, 0.4f, 0.4f)), false, 1.0f, Material::MAT3);
+			DirectX::XMFLOAT3(0.4f, 0.4f, 0.4f)), false, 2.0f, Material::MAT3);
+	cb = sphere->getConstantBuffer();
+	cb.LightColour = { cb.LightColour.x * 1.5f, cb.LightColour.y * 1.5f, cb.LightColour.z * 1.5f, 1.0f };
+	cb.DarkColour = { cb.LightColour.x * 0.5f, cb.LightColour.y * 0.5f, cb.LightColour.z * 0.5f, 1.0f };
+	sphere->setConstantBuffer(cb);
 	sphere->setObjectId(1); // Set a unique ID for the sphere
 	sphere->setPeerID(0); // Set a peer ID if needed, here we use 0 for simplicity
 	sphere->setIsOwned(true); // Mark as owned by the local peer
@@ -98,9 +70,9 @@ void TestScenario3::setupFixedObjects()
 	addPhysicsObject(std::move(sphere));
 }
 
-void TestScenario3::onLoad()
+void TestScenario4::onLoad()
 {
-	OutputDebugString(L">>>>>>>>>> TestScenario3::onLoad\n");
+	OutputDebugString(L">>>>>>>>>> TestScenario4::onLoad\n");
 
 	initObjects();
 
@@ -111,19 +83,19 @@ void TestScenario3::onLoad()
 	setupFixedObjects();
 }
 
-void TestScenario3::onUnload()
+void TestScenario4::onUnload()
 {
-	OutputDebugString(L">>>>>>>>>> TestScenario3::onUnload\n");
+	OutputDebugString(L">>>>>>>>>> TestScenario4::onUnload\n");
 
 	unloadScenario();
 }
 
-void TestScenario3::onUpdate(float dt)
+void TestScenario4::onUpdate(float dt)
 {
 	//updateMovement(dt);
 }
 
-void TestScenario3::ImGuiMainMenu()
+void TestScenario4::ImGuiMainMenu()
 {
 	applySharedGUI();
 }

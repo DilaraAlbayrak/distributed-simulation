@@ -1,5 +1,6 @@
 #pragma once
 #include <DirectXMath.h>
+#include "globals.h"
 
 class Sphere;
 class Plane;
@@ -14,7 +15,7 @@ private:
 	DirectX::XMFLOAT3 _rotation = { 0.0f, 0.0f, 1.0f };
 	DirectX::XMFLOAT3 _scale = { 1.0f, 1.0f, 1.0f };
 public:
-	Collider(DirectX::XMFLOAT3 position = { 0.0f, 0.0f, 0.0f }, DirectX::XMFLOAT3 rotation = { 0.0f, 0.0f, 0.0f }, DirectX::XMFLOAT3 scale = { 1.0f, 1.0f, 1.0f }) :
+	Collider(DirectX::XMFLOAT3 position = { 0.0f, globals::AXIS_LENGTH - 0.5f, 0.0f }, DirectX::XMFLOAT3 rotation = { 0.0f, 0.0f, 0.0f }, DirectX::XMFLOAT3 scale = { 1.0f, 1.0f, 1.0f }) :
 		_position(position), _rotation(rotation), _scale(scale)
 	{
 		if (_scale.x < 0.0001f) _scale.x = 1.0f;

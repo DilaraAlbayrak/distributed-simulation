@@ -22,7 +22,7 @@ void Scenario2::setupFixedObjects()
 					rotation,
 					scaleVec),
 				true, // isFixed
-				1.0f, // mass
+				50.0f, // mass
 				Material::MAT2 // material
 			);
 

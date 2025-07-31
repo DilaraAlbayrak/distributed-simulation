@@ -5,7 +5,7 @@
 
 void TestScenario2::setupFixedObjects()
 {
-	float radius = randomFloat(0.4f, 0.7f);
+	float radius = 0.65f;
 	float scale = radius * 2.0f;
 	//float x = randomFloat(-axisLength, axisLength);
 	float x = 0.0f;
@@ -17,7 +17,7 @@ void TestScenario2::setupFixedObjects()
 		std::make_unique<Capsule>(
 			DirectX::XMFLOAT3(x, y, z),
 			DirectX::XMFLOAT3(90.0f, 0.0f, 0.0f),
-			DirectX::XMFLOAT3(scale, scale, scale)), true);
+			DirectX::XMFLOAT3(scale, scale, scale)), true, 50.0f, Material::MAT2);
 	fixedCapsule->LoadModel("shapes/capsule.sjg");
 	ConstantBuffer cb = fixedCapsule->getConstantBuffer();
 	cb.LightColour = { 1-radius,1-radius,radius, 1.0f };
@@ -30,6 +30,9 @@ void TestScenario2::setupFixedObjects()
 			DirectX::XMFLOAT3(x + 0.2f, 2.5f, z),
 			DirectX::XMFLOAT3(0.0f, 0.0f, 0.0f),
 			DirectX::XMFLOAT3(0.2f, 0.2f, 0.2f)), false);
+	sphere->setObjectId(0); // Set a unique ID for the sphere
+	sphere->setPeerID(0); // Set a peer ID if needed, here we use 0 for simplicity
+	sphere->setIsOwned(true); // Mark as owned by the local peer
 	sphere->LoadModel("shapes/sphere.sjg");
 	addPhysicsObject(std::move(sphere));
 }

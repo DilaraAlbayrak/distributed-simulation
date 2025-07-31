@@ -10,8 +10,8 @@ public:
 	Scenario4(const CComPtr <ID3D11Device>& pDevice, const CComPtr <ID3D11DeviceContext>& pContext) : Scenario(pDevice, pContext)
 	{
 		setNumMovingSpheres(10000);
-		setMinRadius(0.01f);
-		setMaxRadius(0.03f);
+		setMinRadius(0.03f);
+		setMaxRadius(0.05f);
 	}
 	~Scenario4() = default;
 

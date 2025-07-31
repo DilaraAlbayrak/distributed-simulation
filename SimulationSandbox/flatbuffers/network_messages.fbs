@@ -10,17 +10,33 @@ table Vec3 {
 table ObjectUpdate {
   objectId: int;
   position: Vec3;
+  rotation: Vec3;
   velocity: Vec3;
   scale:Vec3;
   owner: int;
 }
 
-table GlobalState {
-  timestep: float;
-  gravityOn: bool;
-  reverseGravity: bool;
-  integrationMethod: int;
+table ScenarioChange {
   scenarioId:int = -1;
+}
+
+table GlobalState {
+  // Corresponds to std::atomic<bool> isPaused;
+  is_paused:bool;
+
+  // Corresponds to std::atomic<int> gravityEnabled;
+  gravity_enabled:int;
+
+  // Corresponds to std::atomic<float> gravityY;
+  gravity_y:float;
+
+  elasticity:float;
+  staticFriction:float;
+  dynamicFriction:float;
+
+  // Corresponds to target frequency globals
+  target_sim_freq:float;
+  target_net_freq:float;
 }
 
 table PeerAnnounce {
@@ -31,7 +47,8 @@ table PeerAnnounce {
 union MessageData {
   ObjectUpdate,
   GlobalState,
-  PeerAnnounce
+  PeerAnnounce,
+  ScenarioChange
 }
 
 table Message {

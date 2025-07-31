@@ -48,6 +48,8 @@ private:
 	std::atomic<bool> _running{ false };
 	std::unique_ptr<std::barrier<>> _syncBarrier;
 
+	//std::chrono::high_resolution_clock::time_point _lastSimTime;
+
 	// For clean thread shutdown (transition between scenarios)
 	std::mutex _runMutex;
 	std::condition_variable _runCondition;
@@ -92,5 +94,5 @@ public:
 	bool isRunning() const { return _running.load(); }
 
 	std::shared_ptr<PhysicsObject> getObjectById(int objectId);
-	void updateObjectState(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale);
+	void updateObjectState(int objectId, const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& rotation, const DirectX::XMFLOAT3& velocity, const DirectX::XMFLOAT3& scale);
 };

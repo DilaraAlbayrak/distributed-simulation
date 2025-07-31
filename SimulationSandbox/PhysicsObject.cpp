@@ -2,6 +2,7 @@
 #include "Sphere.h"
 #include <debugapi.h>
 #include <algorithm>
+#include <sysinfoapi.h>
 
 using namespace DirectX;
 
@@ -123,16 +124,83 @@ void PhysicsObject::setMass(float newMass)
     else { inverseMomentOfInertia = 0.0f; } 
 }
 
-void PhysicsObject::setNetworkState(const DirectX::XMFLOAT3& newPosition, const DirectX::XMFLOAT3& newVelocity, const DirectX::XMFLOAT3& newScale)
+DirectX::XMFLOAT3 PhysicsObject::getSmoothedPosition(float renderTime) const
 {
-    if (_collider)
+    if (globals::isPaused.load())
     {
-        _collider->setPosition(newPosition);
-        _collider->setScale(newScale); 
-        _constantBuffer.World = _collider->updateWorldMatrix(); 
+        return currentRenderingPosition;
     }
+
+    if (currentTimestamp == 0.0f)
+    {
+        // Not yet initialised — avoid glitch
+        return currentRenderingPosition;
+    }
+
+    float delta = currentTimestamp - previousTimestamp;
+    if (delta <= 0.0f)
+        return currentRenderingPosition;
+
+    float t = (renderTime - previousTimestamp) / delta;
+
+    if (t < 0.0f)
+    {
+        return previousRenderingPosition;
+    }
+    else if (t <= 1.0f)
+    {
+        DirectX::XMFLOAT3 result;
+        result.x = previousRenderingPosition.x + t * (currentRenderingPosition.x - previousRenderingPosition.x);
+        result.y = previousRenderingPosition.y + t * (currentRenderingPosition.y - previousRenderingPosition.y);
+        result.z = previousRenderingPosition.z + t * (currentRenderingPosition.z - previousRenderingPosition.z);
+        return result;
+    }
+    else
+    {
+        DirectX::XMFLOAT3 velocity;
+        velocity.x = (currentRenderingPosition.x - previousRenderingPosition.x) / delta;
+        velocity.y = (currentRenderingPosition.y - previousRenderingPosition.y) / delta;
+        velocity.z = (currentRenderingPosition.z - previousRenderingPosition.z) / delta;
+
+        float extraTime = renderTime - currentTimestamp;
+        DirectX::XMFLOAT3 result;
+        result.x = currentRenderingPosition.x + velocity.x * extraTime;
+        result.y = currentRenderingPosition.y + velocity.y * extraTime;
+        result.z = currentRenderingPosition.z + velocity.z * extraTime;
+        return result;
+    }
+}
+
+void PhysicsObject::setNetworkState(const DirectX::XMFLOAT3& newPosition, const DirectX::XMFLOAT3& newRotation,
+    const DirectX::XMFLOAT3& newVelocity,
+    const DirectX::XMFLOAT3& newScale)
+{
+    float now = static_cast<float>(GetTickCount64()) / 1000.0f;
+
+    if (currentTimestamp == 0.0f) {
+        previousRenderingPosition = newPosition;
+        currentRenderingPosition = newPosition;
+        previousTimestamp = now;
+        currentTimestamp = now;
+    }
+    else {
+        previousRenderingPosition = currentRenderingPosition;
+        previousTimestamp = currentTimestamp;
+
+        currentRenderingPosition = newPosition;
+        currentTimestamp = now;
+    }
+
+    if (_collider) {
+        _collider->setPosition(newPosition);
+		_collider->setRotation(newRotation);
+        _collider->setScale(newScale);
+        _constantBuffer.World = _collider->updateWorldMatrix();
+    }
+
     velocity = newVelocity;
 }
+
 
 void PhysicsObject::constrainToBounds()
 {
@@ -183,6 +251,8 @@ void PhysicsObject::constrainToBounds()
 
 void PhysicsObject::Update(float deltaTime)
 {
+    //if (globals::isPaused.load()) return;
+
 	if (!_collider)
     {
         OutputDebugString(L"[ERROR] Update() called but _collider is null\n");
@@ -192,10 +262,9 @@ void PhysicsObject::Update(float deltaTime)
 
    // previousPosition = _collider->getPosition();
 
-	int gravityEnabled = globals::gravityEnabled.load();
-    acceleration = {globals::gravity.x * gravityEnabled * inverseMass,
-                    globals::gravity.y * gravityEnabled* inverseMass,
-                    globals::gravity.z * gravityEnabled* inverseMass };
+    acceleration = {0.0f,
+                    globals::gravityY * globals::gravityEnabled, // * inverseMass,
+                    0.0f };
 
 	int currentMethod = globals::integrationMethod.load();
 
@@ -270,63 +339,97 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
     float invMassSum = invMassA + invMassB;
     if (invMassSum <= 1e-6f) return;
 
-    // --- 1. Restitution Impulse (Handles bounce) ---
+    // --- 1. Restitution Impulse (Bounce) ---
     DirectX::XMFLOAT3 relativeVelocity = { velocity.x - other.velocity.x, velocity.y - other.velocity.y, velocity.z - other.velocity.z };
     float velocityAlongNormal = relativeVelocity.x * collisionNormal.x + relativeVelocity.y * collisionNormal.y + relativeVelocity.z * collisionNormal.z;
-    if (velocityAlongNormal > 0.0f) return;
+
+    if (velocityAlongNormal > 0.0f) return; // Objects are already moving apart
 
     int matA = static_cast<int>(material);
     int matB = static_cast<int>(other.material);
-    float e = elasticityLookup[matA][matB];
-    float impulseMagnitude = -(1.0f + e) * velocityAlongNormal / invMassSum;
-    DirectX::XMFLOAT3 impulse = { impulseMagnitude * collisionNormal.x, impulseMagnitude * collisionNormal.y, impulseMagnitude * collisionNormal.z };
+
+	float restitution = globals::elasticity.load();
+	if (restitution < 0.0f) {
+		// Use lookup table for restitution if not set globally
+		restitution = elasticityLookup[matA][matB];
+		globals::elasticity.store(restitution); // Update global value for consistency
+	}
+
+    float normalImpulseMagnitude = -(1.0f + restitution) * velocityAlongNormal / invMassSum;
+
+    DirectX::XMFLOAT3 normalImpulse = {
+        normalImpulseMagnitude * collisionNormal.x,
+        normalImpulseMagnitude * collisionNormal.y,
+        normalImpulseMagnitude * collisionNormal.z
+    };
 
     if (!isFixed) {
-        velocity.x += impulse.x * invMassA;
-        velocity.y += impulse.y * invMassA;
-        velocity.z += impulse.z * invMassA;
+        velocity.x += normalImpulse.x * invMassA;
+        velocity.y += normalImpulse.y * invMassA;
+        velocity.z += normalImpulse.z * invMassA;
     }
     if (!other.isFixed) {
-        other.velocity.x -= impulse.x * invMassB;
-        other.velocity.y -= impulse.y * invMassB;
-        other.velocity.z -= impulse.z * invMassB;
+        other.velocity.x -= normalImpulse.x * invMassB;
+        other.velocity.y -= normalImpulse.y * invMassB;
+        other.velocity.z -= normalImpulse.z * invMassB;
     }
 
-    // --- 2. Friction Impulse ---
+    // --- 2. Friction Impulse (Static and Dynamic) ---
+    // Recalculate relative velocity after applying normal impulse
     relativeVelocity = { velocity.x - other.velocity.x, velocity.y - other.velocity.y, velocity.z - other.velocity.z };
-    DirectX::XMVECTOR vRel = DirectX::XMLoadFloat3(&relativeVelocity);
-    DirectX::XMVECTOR vNorm = DirectX::XMLoadFloat3(&collisionNormal);
-    DirectX::XMVECTOR velTangent = vRel - vNorm * DirectX::XMVector3Dot(vRel, vNorm);
-    float tangentSpeedSq = DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(velTangent));
+    DirectX::XMVECTOR vRel = XMLoadFloat3(&relativeVelocity);
+    DirectX::XMVECTOR vNorm = XMLoadFloat3(&collisionNormal);
 
-    DirectX::XMVECTOR frictionImpulseVec = DirectX::XMVectorSet(0.f, 0.f, 0.f, 0.f);
+    // Get the tangential component of the relative velocity
+    DirectX::XMVECTOR velTangent = vRel - vNorm * XMVector3Dot(vRel, vNorm);
+    float tangentSpeedSq = XMVectorGetX(XMVector3LengthSq(velTangent));
+
+    DirectX::XMVECTOR frictionImpulseVec = XMVectorSet(0.f, 0.f, 0.f, 0.f);
+
     if (tangentSpeedSq > 1e-6f) {
-        DirectX::XMVECTOR tangentDirection = DirectX::XMVector3Normalize(velTangent);
-        float jtMagnitude = -DirectX::XMVectorGetX(DirectX::XMVector3Dot(vRel, tangentDirection));
+        DirectX::XMVECTOR tangentDirection = XMVector3Normalize(velTangent);
+
+        // Calculate impulse required to stop tangential motion
+        float jtMagnitude = -XMVectorGetX(XMVector3Dot(vRel, tangentDirection));
         jtMagnitude /= invMassSum;
 
-        float staticFrictionCoeff = 0.5f;
-        float maxFrictionImpulse = staticFrictionCoeff * impulseMagnitude;
-        jtMagnitude = std::clamp(jtMagnitude, -maxFrictionImpulse, maxFrictionImpulse);
+        // Get friction coefficients from lookup tables
+        float staticFriction = globals::staticFriction.load();
+		if (staticFriction < 0.0f) {
+			staticFriction = staticFrictionLookup[matA][matB];
+			globals::staticFriction.store(staticFriction); // Update global value for consistency
+		}
+		float dynamicFriction = globals::dynamicFriction.load();
+		if (dynamicFriction < 0.0f) {
+			dynamicFriction = dynamicFrictionLookup[matA][matB];
+			globals::dynamicFriction.store(dynamicFriction); // Update global value for consistency
+		}
 
-        frictionImpulseVec = tangentDirection * jtMagnitude;
+        // Check if static friction is strong enough to prevent sliding
+        if (std::abs(jtMagnitude) < staticFriction * normalImpulseMagnitude) {
+            // Static Friction holds: Apply the exact impulse to prevent sliding
+            frictionImpulseVec = tangentDirection * jtMagnitude;
+        }
+        else {
+            // Dynamic (Kinetic) Friction: Static friction breaks, apply sliding friction
+            frictionImpulseVec = tangentDirection * -dynamicFriction * normalImpulseMagnitude;
+        }
 
         // Apply friction impulse to linear velocities
         if (!isFixed) {
-            velocity.x += DirectX::XMVectorGetX(frictionImpulseVec) * invMassA;
-            velocity.y += DirectX::XMVectorGetY(frictionImpulseVec) * invMassA;
-            velocity.z += DirectX::XMVectorGetZ(frictionImpulseVec) * invMassA;
+            velocity.x += XMVectorGetX(frictionImpulseVec) * invMassA;
+            velocity.y += XMVectorGetY(frictionImpulseVec) * invMassA;
+            velocity.z += XMVectorGetZ(frictionImpulseVec) * invMassA;
         }
         if (!other.isFixed) {
-            other.velocity.x -= DirectX::XMVectorGetX(frictionImpulseVec) * invMassB;
-            other.velocity.y -= DirectX::XMVectorGetY(frictionImpulseVec) * invMassB;
-            other.velocity.z -= DirectX::XMVectorGetZ(frictionImpulseVec) * invMassB;
+            other.velocity.x -= XMVectorGetX(frictionImpulseVec) * invMassB;
+            other.velocity.y -= XMVectorGetY(frictionImpulseVec) * invMassB;
+            other.velocity.z -= XMVectorGetZ(frictionImpulseVec) * invMassB;
         }
     }
 
     // --- 3. Torque from Friction ---
-    const float minSlidingSpeedForTorqueSq = 0.0025f;
-    if (tangentSpeedSq > minSlidingSpeedForTorqueSq)
+    if (XMVectorGetX(XMVector3LengthSq(frictionImpulseVec)) > 1e-6f)
     {
         if (!isFixed && inverseMomentOfInertia > 0.0f) {
             if (auto sphereA = dynamic_cast<Sphere*>(_collider.get())) {
@@ -340,19 +443,23 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
         if (!other.isFixed && other.inverseMomentOfInertia > 0.0f) {
             if (auto sphereB = dynamic_cast<Sphere*>(other._collider.get())) {
                 DirectX::XMVECTOR rB = vNorm * sphereB->getRadius();
-                DirectX::XMVECTOR torqueB = DirectX::XMVector3Cross(rB, -frictionImpulseVec);
-                other.angularVelocity.x += DirectX::XMVectorGetX(torqueB) * other.inverseMomentOfInertia;
-                other.angularVelocity.y += DirectX::XMVectorGetY(torqueB) * other.inverseMomentOfInertia;
-                other.angularVelocity.z += DirectX::XMVectorGetZ(torqueB) * other.inverseMomentOfInertia;
+                DirectX::XMVECTOR torqueB = DirectX::XMVector3Cross(rB, frictionImpulseVec); // Friction on B is opposite
+                other.angularVelocity.x -= DirectX::XMVectorGetX(torqueB) * other.inverseMomentOfInertia;
+                other.angularVelocity.y -= DirectX::XMVectorGetY(torqueB) * other.inverseMomentOfInertia;
+                other.angularVelocity.z -= DirectX::XMVectorGetZ(torqueB) * other.inverseMomentOfInertia;
             }
         }
     }
 
     // --- 4. Positional Correction ---
-    const float percent = 0.2f;
+    const float percent = 0.4f; // Increased a bit for more stability
     const float slop = 0.01f;
     float correctionMag = (std::max(penetrationDepth - slop, 0.0f) / invMassSum) * percent;
-    DirectX::XMFLOAT3 correction = { correctionMag * collisionNormal.x, correctionMag * collisionNormal.y, correctionMag * collisionNormal.z };
+    DirectX::XMFLOAT3 correction = {
+        correctionMag * collisionNormal.x,
+        correctionMag * collisionNormal.y,
+        correctionMag * collisionNormal.z
+    };
 
     if (!isFixed) {
         _collider->incrementPosition({ correction.x * invMassA, correction.y * invMassA, correction.z * invMassA });
@@ -377,6 +484,17 @@ const DirectX::XMFLOAT3 PhysicsObject::getPosition() const
     else
     {
         OutputDebugString(L"[WARNING] getPosition() called but _collider is null\n");
+        return { 0.0f, 0.0f, 0.0f };
+    }
+}
+
+const DirectX::XMFLOAT3 PhysicsObject::getRotation() const
+{
+    if (_collider)
+		return _collider->getRotation();
+    else
+    {
+        OutputDebugString(L"[WARNING] getRotation() called but _collider is null\n");
         return { 0.0f, 0.0f, 0.0f };
     }
 }
