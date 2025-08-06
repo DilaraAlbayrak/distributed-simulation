@@ -372,11 +372,11 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
         velocity.y += normalImpulse.y * invMassA;
         velocity.z += normalImpulse.z * invMassA;
     }
-    if (!other.isFixed) {
+    /*if (!other.isFixed) {
         other.velocity.x -= normalImpulse.x * invMassB;
         other.velocity.y -= normalImpulse.y * invMassB;
         other.velocity.z -= normalImpulse.z * invMassB;
-    }
+    }*/
 
     // --- 2. Friction Impulse (Static and Dynamic) ---
     // Recalculate relative velocity after applying normal impulse
@@ -425,11 +425,11 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
             velocity.y += XMVectorGetY(frictionImpulseVec) * invMassA;
             velocity.z += XMVectorGetZ(frictionImpulseVec) * invMassA;
         }
-        if (!other.isFixed) {
+        /*if (!other.isFixed) {
             other.velocity.x -= XMVectorGetX(frictionImpulseVec) * invMassB;
             other.velocity.y -= XMVectorGetY(frictionImpulseVec) * invMassB;
             other.velocity.z -= XMVectorGetZ(frictionImpulseVec) * invMassB;
-        }
+        }*/
     }
 
     // --- 3. Torque from Friction ---
@@ -444,15 +444,15 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
                 angularVelocity.z += DirectX::XMVectorGetZ(torqueA) * inverseMomentOfInertia;
             }
         }
-        if (!other.isFixed && other.inverseMomentOfInertia > 0.0f) {
-            if (auto sphereB = dynamic_cast<Sphere*>(other._collider.get())) {
-                DirectX::XMVECTOR rB = vNorm * sphereB->getRadius();
-                DirectX::XMVECTOR torqueB = DirectX::XMVector3Cross(rB, frictionImpulseVec); // Friction on B is opposite
-                other.angularVelocity.x -= DirectX::XMVectorGetX(torqueB) * other.inverseMomentOfInertia;
-                other.angularVelocity.y -= DirectX::XMVectorGetY(torqueB) * other.inverseMomentOfInertia;
-                other.angularVelocity.z -= DirectX::XMVectorGetZ(torqueB) * other.inverseMomentOfInertia;
-            }
-        }
+        //if (!other.isFixed && other.inverseMomentOfInertia > 0.0f) {
+        //    if (auto sphereB = dynamic_cast<Sphere*>(other._collider.get())) {
+        //        DirectX::XMVECTOR rB = vNorm * sphereB->getRadius();
+        //        DirectX::XMVECTOR torqueB = DirectX::XMVector3Cross(rB, frictionImpulseVec); // Friction on B is opposite
+        //        other.angularVelocity.x -= DirectX::XMVectorGetX(torqueB) * other.inverseMomentOfInertia;
+        //        other.angularVelocity.y -= DirectX::XMVectorGetY(torqueB) * other.inverseMomentOfInertia;
+        //        other.angularVelocity.z -= DirectX::XMVectorGetZ(torqueB) * other.inverseMomentOfInertia;
+        //    }
+        //}
     }
 
     // --- 4. Positional Correction ---
@@ -468,9 +468,9 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
     if (!isFixed) {
         _collider->incrementPosition({ correction.x * invMassA, correction.y * invMassA, correction.z * invMassA });
     }
-    if (!other.isFixed) {
+   /* if (!other.isFixed) {
         other._collider->incrementPosition({ -correction.x * invMassB, -correction.y * invMassB, -correction.z * invMassB });
-    }
+    }*/
 }
 
 const ConstantBuffer PhysicsObject::getConstantBuffer() const
