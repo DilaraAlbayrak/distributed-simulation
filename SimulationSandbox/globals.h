@@ -5,7 +5,7 @@
 namespace globals
 {
     constexpr float AXIS_LENGTH = 3.0f;
-    constexpr int NUM_PEERS = 4; // Number of peers in the simulation 
+    constexpr int NUM_PEERS = 2; // Number of peers in the simulation 
     extern std::atomic<float> gravityY;
     extern std::atomic<int> integrationMethod;
     extern std::atomic<bool> isPaused;            // Start non-paused

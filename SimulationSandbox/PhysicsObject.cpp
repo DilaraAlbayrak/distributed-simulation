@@ -334,6 +334,8 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
 {
     if (!_collider || !other._collider || (isFixed && other.isFixed)) return;
 
+	if (!isOwned()) return; // Only owned objects can resolve collisions
+
     float invMassA = isFixed ? 0.0f : inverseMass;
     float invMassB = other.isFixed ? 0.0f : other.inverseMass;
     float invMassSum = invMassA + invMassB;
@@ -355,6 +357,8 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
 		globals::elasticity.store(restitution); // Update global value for consistency
 	}
 
+    // dv = -(1.0f + restitution) * velocityAlongNormal
+	// J = m * dv
     float normalImpulseMagnitude = -(1.0f + restitution) * velocityAlongNormal / invMassSum;
 
     DirectX::XMFLOAT3 normalImpulse = {

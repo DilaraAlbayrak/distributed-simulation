@@ -11,10 +11,10 @@ using namespace DirectX;
 
 #define COMPILE_CSO
 
-//constexpr UINT _windowWidth = 1000;
-//constexpr UINT _windowHeight = 750
-constexpr UINT _windowWidth = 600;
-constexpr UINT _windowHeight = 450;
+constexpr UINT _windowWidth = 1000;
+constexpr UINT _windowHeight = 750;
+//constexpr UINT _windowWidth = 600;
+//constexpr UINT _windowHeight = 450;
 
 //--------------------------------------------------------------------------------------
 // Structures
