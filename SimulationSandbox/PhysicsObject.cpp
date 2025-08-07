@@ -175,6 +175,8 @@ void PhysicsObject::setNetworkState(const DirectX::XMFLOAT3& newPosition, const 
     const DirectX::XMFLOAT3& newVelocity,
     const DirectX::XMFLOAT3& newScale)
 {
+	if (globals::isPaused.load()) return;
+
     float now = static_cast<float>(GetTickCount64()) / 1000.0f;
 
     if (currentTimestamp == 0.0f) {
