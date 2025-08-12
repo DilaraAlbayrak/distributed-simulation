@@ -343,7 +343,7 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
     float invMassSum = invMassA + invMassB;
     if (invMassSum <= 1e-6f) return;
 
-    // --- 1. Restitution Impulse (Bounce) ---
+    // Restitution Impulse 
     DirectX::XMFLOAT3 relativeVelocity = { velocity.x - other.velocity.x, velocity.y - other.velocity.y, velocity.z - other.velocity.z };
     float velocityAlongNormal = relativeVelocity.x * collisionNormal.x + relativeVelocity.y * collisionNormal.y + relativeVelocity.z * collisionNormal.z;
 
@@ -380,7 +380,7 @@ void PhysicsObject::resolveCollision(PhysicsObject& other, const DirectX::XMFLOA
         other.velocity.z -= normalImpulse.z * invMassB;
     }*/
 
-    // --- 2. Friction Impulse (Static and Dynamic) ---
+	// Friction Impulse, static and dynamic friction
     // Recalculate relative velocity after applying normal impulse
     relativeVelocity = { velocity.x - other.velocity.x, velocity.y - other.velocity.y, velocity.z - other.velocity.z };
     DirectX::XMVECTOR vRel = XMLoadFloat3(&relativeVelocity);

@@ -95,7 +95,7 @@ protected:
 
 	static float randomFloat(float min, float max);
 
-	void updateInstanceBuffer();
+	void updateInstanceBuffer(float dt = 0.016f);
 
 public:
 	virtual ~Scenario() = default;

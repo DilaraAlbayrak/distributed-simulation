@@ -122,14 +122,20 @@ void Scenario::initInstancedRendering()
 	}
 }
 
-void Scenario::updateInstanceBuffer()
+void Scenario::updateInstanceBuffer(float dt)
 {
+	if (globals::isPaused || !context || !instanceBuffer)
+	{
+		return; // No need to update if paused or resources are not ready.
+	}
+
 	instanceData.clear();
 	// We can reserve based on the total number of moving spheres we intend to have.
 	// This avoids multiple reallocations as spheres are spawned.
 	instanceData.reserve(numMovingSpheres);
 
-	float renderTime = static_cast<float>(GetTickCount64()) / 1000.0f;
+	float renderTime = dt;
+	//float renderTime = static_cast<float>(GetTickCount64()) / 1000.0f;
 
 	// The new access function gives us both lists.
 	// We only need the 'movingObjects' list here.

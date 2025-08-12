@@ -119,7 +119,7 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 
 	auto frameStart = std::chrono::high_resolution_clock::now();
 
-	// --- Phase 0: Create a local, thread-safe copy of the data ---
+	// Create a local, thread-safe copy of the data
 	// By copying the shared_ptrs, we ensure that even if the main thread
 	// modifies the original vectors, our pointers for this simulation step remain valid.
 	std::vector<std::shared_ptr<PhysicsObject>> localMovingObjects;
@@ -149,7 +149,7 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 	size_t startIndex = threadIndex * objectsPerThread;
 	size_t endIndex = std::min(startIndex + objectsPerThread, numMovingObjects);
 
-	// --- Phase 1: Clear and Populate the Grid (Parallel) ---
+	// Clear and Populate the Grid 
 	size_t totalCells = _grid.size();
 	size_t cellsPerThread = (totalCells + numThreads - 1) / numThreads;
 	size_t startCell = threadIndex * cellsPerThread;
@@ -175,7 +175,7 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 	}
 	_syncBarrier->arrive_and_wait();
 
-	// --- Phase 2: Detect ALL Collisions (Parallel) ---
+	// Detect ALL Collisions
 	_threadCollisionPairs[threadIndex].clear();
 
 	for (size_t i = startIndex; i < endIndex; ++i)
@@ -231,7 +231,7 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 	}
 	_syncBarrier->arrive_and_wait();
 
-	// --- Phase 3: Resolve ALL Collisions (Single Thread) ---
+	//  Resolve ALL Collisions 
 	if (threadIndex == 0)
 	{
 		_allCollisionPairs.clear();
@@ -266,7 +266,7 @@ void PhysicsManager::simulationLoop(int threadIndex, int numThreads, float dt)
 	auto& networkManager = NetworkManager::getInstance();
 	int localPeerId = networkManager.getLocalPeerId();
 
-	// --- Phase 4: Update Physics State (Parallel) ---
+	// Update Physics State
 	for (size_t i = startIndex; i < endIndex; ++i)
 	{
 		if (const auto& obj = localMovingObjects[i])
