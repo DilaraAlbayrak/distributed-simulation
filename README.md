@@ -1,6 +1,6 @@
-# 700105-2425-FinalLab
+# Distributed Physics
 
-The purpose of this assessment is to design and implement an efficient network-based simulation of a series of physics-based scenarios. 
+The purpose of this project is to design and implement an efficient network-based simulation of a series of physics-based scenarios. 
 
 This project involves building a distributed, peer-to-peer physics simulation, where objects from multiple computers interact in real time within a shared physics-based environment. The simulation integrates multithreaded physics (gravity, collision detection and response), synchronised global state, and adjustable simulation frequencies, all developed using DirectX 11 and Winsock 2.
 
